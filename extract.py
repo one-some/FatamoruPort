@@ -93,6 +93,12 @@ def extract_xp3(xp3_io, target_dir):
                 xp3_io.seek(s["offset"], os.SEEK_SET)
                 out += xp3_io.read(s["size"])
 
+            if path.endswith(".ks"):
+                # I DON'T WANNA DEAL WITH THIS IN C!!!
+                out = out.decode("utf-16")
+                out = out.replace("\r\n", "\n")
+                out = out.encode("utf-8")
+
             out_path = target_dir / path
             out_path.parent.mkdir(parents=True, exist_ok=True)
 
