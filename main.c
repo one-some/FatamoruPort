@@ -3,205 +3,74 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/time.h>
 
+#include "raylib.h"
 #include "vector.h"
+#include "parse.h"
 
-typedef enum {
-	NODE_COMMAND,
-	NODE_LABEL,
-} NodeType;
+const int NO_ARG_INT = 1 << 31;
 
 typedef struct {
-	NodeType type;
-} BaseNode;
+    Texture2D texture;
+    // Queen
+    bool valid;
+} VisualLayer;
 
 typedef struct {
-	BaseNode base;
-	char* cmd;
-} CommandNode;
+    VisualLayer base_layer;
+} VisualScene;
 
 typedef struct {
-	BaseNode base;
-	char* label_id;
-	char* label_title;
-} LabelNode;
+    Vector nodes;
+    double last_time;
+    float wait_timer;
+    int node_idx;
+    VisualScene visual;
+} FataState;
 
-char* load_src(const char* path) {
-	FILE* f = fopen(path, "rb");
-	assert(f);
+typedef struct {
+    char* key;
+    char* value;
+} CommandArg;
 
-	fseek(f, 0, SEEK_END);
-	size_t len = ftell(f);
-	fseek(f, 0, SEEK_SET);
+void load(FataState* state, char* path) {
+    // TODO: Deep free
+    state->nodes = v_new();
+    state->node_idx = 0;
 
-	char* src = malloc(len + 1);
-	assert(src);
-	fread(src, 1, len, f);
-	fclose(f);
+    // WARNING: When (if) we free later, the ptr will be gone! Save it!!
+	char* src = load_src(path);
 
-	src[len] = '\0';
+	while (*src) {
+        BaseNode* node = parse_one(&src);
+		if (!node) continue;
 
-	return src;
-}
-
-LabelNode* eat_label(char** src) {
-	assert(**src == '*');
-	(*src)++;
-
-	const int LAB_PART_LEN = 63;
-
-	LabelNode* out = malloc(sizeof(LabelNode));
-	out->base = (BaseNode) { .type = NODE_LABEL };
-	out->label_id = malloc(LAB_PART_LEN + 1);
-	out->label_title = NULL;
-
-	int i = 0;
-	char c;
-
-	char* target = out->label_id;
-
-	while ((c = **src)) {
-		if (c == '\n') break;
-		if (c == '|') {
-			target[i] = '\0';
-
-			out->label_title = malloc(LAB_PART_LEN + 1);
-			target = out->label_title;
-			i = 0;
-			(*src)++;
-			continue;
-		}
-
-		target[i++] = c;
-		assert(i < LAB_PART_LEN);
-
-		(*src)++;
+        v_append(&state->nodes, node);
 	}
-	target[i] = '\0';
-
-	return out;
 }
 
-CommandNode* eat_bracket_command(char** src) {
-	assert(**src == '[');
-	(*src)++;
+char* find_image(char* storage) {
+    const char *patterns[] = {
+        "./cache/bgimage/%s.png",
+        "./cache/bgimage/%s.jpg",
+        NULL
+    };
 
-    const int LINE_LENGTH = 255;
+    for (int i=0; ; i++) {
+        if (!patterns[i]) break;
 
-	CommandNode* out = malloc(sizeof(CommandNode));
-	out->base = (BaseNode) { .type = NODE_COMMAND };
-	out->cmd = malloc(LINE_LENGTH + 1);
-    int buf_i = 0;
+        char path_buffer[256];
+        snprintf(path_buffer, sizeof(path_buffer), patterns[i], storage);
 
-    char c;
-	while ((c = **src)) {
-		if (c == ']') break;
-        out->cmd[buf_i++] = c;
-        assert(buf_i < LINE_LENGTH);
-
-		(*src)++;
-	}
-
-    out->cmd[buf_i] = '\0';
-	(*src)++;
-
-	return out;
-}
-
-CommandNode* eat_at_command(char** src) {
-	assert(**src == '@');
-	(*src)++;
-
-    const int LINE_LENGTH = 127;
-
-	CommandNode* out = malloc(sizeof(CommandNode));
-	out->base = (BaseNode) { .type = NODE_COMMAND };
-	out->cmd = malloc(LINE_LENGTH + 1);
-    int line_i = 0;
-
-    char c;
-    while ((c = **src)) {
-        char c = **src;
-        if (c == '\n') break;
-
-        out->cmd[line_i++] = c;
-        assert(line_i < LINE_LENGTH);
-
-        (*src)++;
-    }
-
-    out->cmd[line_i] = '\0';
-
-    return out;
-}
-
-bool is_whitespace(char c) {
-	switch (c) {
-		case '\n':
-		case ' ':
-		case '\t':
-			return true;
-	}
-	return false;
-}
-
-void process_command(char* cmd_line, char** src) {
-    if (strcmp(cmd_line, "iscript") == 0) {
-        // Keep looping until we find a thing that closes it
-        while (**src) {
-            // If we find '\n@' we might be onto something
-            if (*((*src)++) != '\n') continue;
-            if (**src != '@') continue;
-
-            CommandNode* node = eat_at_command(src);
-            bool out_we_go = strcmp(node->cmd, "endscript") == 0;
-            if (out_we_go) break;
+        FILE *fp = fopen(path_buffer, "r");
+        if (fp) {
+            fclose(fp);
+            return strdup(path_buffer);
         }
     }
-}
 
-BaseNode* parse_one(char** src) {
-	while (**src && is_whitespace(**src)) {
-        (*src)++;
-	}
-
-    char c = **src;
-	if (!c) return NULL;
-
-    if (c == '[') {
-        CommandNode* command = eat_bracket_command(src);
-        process_command(command->cmd, src);
-		return (BaseNode*)command;
-    } else if (c == '@') {
-        CommandNode* command = eat_at_command(src);
-        process_command(command->cmd, src);
-		return (BaseNode*)command;
-    } else if (c == '*') {
-		return (BaseNode*)eat_label(src);
-    } else if (c == ';') {
-        // Eat comment
-        while(++(*src)) {
-            if (**src == '\n') break;
-        }
-		return NULL;
-    } else {
-        printf("Didn't expect '%c' (%d)\n", c, c);
-        assert(false);
-    }
-
-	return NULL;
-}
-
-void print_node(BaseNode* base_node) {
-	if (base_node->type == NODE_LABEL) {
-		LabelNode* node = (LabelNode*)base_node;
-		printf("[label] ID: '%s'", node->label_id);
-		if (node->label_title) printf(" Title: '%s'", node->label_title);
-		printf("\n");
-	} else if (base_node->type == NODE_COMMAND) {
-		CommandNode* node = (CommandNode*)base_node;
-		printf("[command] '%s'\n", node->cmd);
-	}
+    assert(false);
 }
 
 Vector slice_command(char* cmd) {
@@ -250,46 +119,180 @@ Vector slice_command(char* cmd) {
 	return parts;
 }
 
-void run_command(CommandNode* command) {
+void strip_quotes(char* str) {
+    // hehe not mine. I'm evil and lazy
+    size_t len = strlen(str);
+
+    if (len > 1 && str[0] == '"' && str[len - 1] == '"') {
+        memmove(str, str + 1, len - 2);
+        str[len - 2] = '\0';
+    }
+}
+
+char* get_arg_str(Vector* args, char* key) {
+    for (int i=0; i<args->length; i++) {
+        CommandArg* arg = v_get(args, i);
+        if (strcmp(arg->key, key) == 0) return arg->value;
+    }
+
+    return NULL;
+}
+
+int get_arg_int(Vector* args, char* key) {
+    char* str = get_arg_str(args, key);
+    if (!str) return NO_ARG_INT;
+
+    // YOLO
+    int out = atoi(str);
+
+    // Whatever man
+    assert(out != NO_ARG_INT);
+
+    return out;
+}
+
+bool run_command(CommandNode* command, FataState* state) {
+    // returns true if showstopper
 	Vector parts = slice_command(command->cmd);
 
-	printf("Parts:\n");
-	for (int i=0;i<parts.length; i++) {
-		printf("'%s'\n", v_get(&parts, i));
-	}
-
 	char* cmd = v_pop(&parts, 0);
+    Vector args = v_new();
+
+    for (int i=0; i<parts.length; i++) {
+        char* arg_str = v_get(&parts, i);
+
+        CommandArg* arg = malloc(sizeof(CommandArg));
+        arg->key = malloc(64);
+        arg->value = malloc(64);
+
+        char* buf = arg->key;
+        int buf_i = 0;
+
+        while (*arg_str) {
+            if (*arg_str == '=') {
+                buf[buf_i] = '\0';
+                buf = arg->value;
+                buf_i = 0;
+
+                arg_str++;
+                continue;
+            }
+
+            buf[buf_i++] = *arg_str;
+            assert(buf_i < 64);
+            arg_str++;
+        }
+
+        buf[buf_i] = '\0';
+        strip_quotes(arg->value);
+        v_append(&args, arg);
+    }
+
 
 	if (strcmp("wait", cmd) == 0) {
-	} else {
-		// Ignore!
-		return;
-	}
+        int time_ms = get_arg_int(&args, "time");
+        assert(time_ms != NO_ARG_INT);
+        state->wait_timer = (float)time_ms;
+        return true;
+    } else if (strcmp("image", cmd) == 0) {
+        // image storage="blacksozai" layer="base" page="fore"
+        char* storage = get_arg_str(&args, "storage");
+        assert(storage);
+
+        char* path = find_image(storage);
+        assert(path);
+
+        VisualLayer* layer = NULL;
+        char* layer_str = get_arg_str(&args, "layer");
+        assert(layer_str);
+
+        if (strcmp(layer_str, "base") == 0) {
+            layer = &state->visual.base_layer;
+        }
+
+        if (layer->valid) {
+            UnloadTexture(layer->texture);
+        }
+
+        Image img = LoadImage(path);
+        layer->texture = LoadTextureFromImage(img);
+        layer->valid = true;
+        UnloadImage(img);
+
+        printf("Load from: %s\n", path);
+    } else if (strcmp("jump", cmd) == 0) {
+        char* storage = get_arg_str(&args, "storage");
+        assert(storage);
+
+        char path_buffer[256];
+        snprintf(path_buffer, sizeof(path_buffer), "cache/scenario/%s", storage);
+
+        load(state, path_buffer);
+        return true;
+    }
+
+    return false;
+}
+
+double get_time_ms() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return ((tv.tv_sec) * 1000.0d) + (tv.tv_usec / 1000.0d);
+}
+
+void frame_work(FataState* state) {
+    if (state->wait_timer > 0.0f) return;
+
+    while (state->node_idx < state->nodes.length) {
+        BaseNode* node = v_get(&state->nodes, state->node_idx++);
+		print_node(node);
+
+		if (node->type == NODE_COMMAND) {
+			bool showstopper = run_command((CommandNode*)node, state);
+            if (showstopper) return;
+		}
+    }
 }
 
 int main() {
-	char* src_str = load_src("cache/scenario/first.ks");
-	char* src = src_str;
-
-	BaseNode* nodes[1000];
-	int ni = 0;
-
 	printf("FataMoru!! ^-^\n");
 
-	while (*src) {
-        BaseNode* node = parse_one(&src);
-		if (!node) continue;
+    FataState state;
 
-		nodes[ni++] = node;
-		assert(ni < 1000);
-	}
-	nodes[ni] = NULL;
+    state.visual.base_layer.valid = false;
 
-	for (int i=0; nodes[i]; i++) {
-		print_node(nodes[i]);
+    state.wait_timer = 0.0f;
+    state.last_time = get_time_ms();
 
-		if (nodes[i]->type == NODE_COMMAND) {
-			run_command((CommandNode*)nodes[i]);
-		}
-	}
+    load(&state, "cache/scenario/first.ks");
+
+    // Raylib stuff...
+    InitWindow(800, 600, "The House in Fata Morgana");
+    SetTargetFPS(60);
+
+    while (!WindowShouldClose()) {
+        double now = get_time_ms();
+        double delta_ms = now - state.last_time;
+        state.last_time = now;
+
+        if (state.wait_timer > 0.0f) {
+            state.wait_timer -= delta_ms;
+            if (state.wait_timer < 0.0f) state.wait_timer = 0.0f;
+            printf("Wait! %f\n", state.wait_timer);
+        }
+
+        frame_work(&state);
+
+        BeginDrawing();
+
+        ClearBackground(RAYWHITE);
+        DrawText("FatamoruPORT! By Claire :3", 0, 0, 20, BLACK);
+
+        if (state.visual.base_layer.valid) {
+            printf("Drawing..\n");
+            DrawTexture(state.visual.base_layer.texture, 0, 0, WHITE);
+        }
+
+        EndDrawing();
+    }
 }
