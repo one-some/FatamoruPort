@@ -19,6 +19,11 @@ typedef struct {
 
 typedef struct {
     VisualLayer base_layer;
+} VisualPage;
+
+typedef struct {
+	VisualPage fore;
+	VisualPage back;
 } VisualScene;
 
 typedef struct {
@@ -254,16 +259,18 @@ void frame_work(FataState* state) {
     }
 }
 
+void initalize_visual(FataState* state) {
+	state->visual.fore.base_layer.valid = false;
+	state->visual.back.base_layer.valid = false;
+}
+
 int main() {
 	printf("FataMoru!! ^-^\n");
 
     FataState state;
-
-    state.visual.base_layer.valid = false;
-
+	initalize_visual(&state);
     state.wait_timer = 0.0f;
     state.last_time = get_time_ms();
-
     load(&state, "cache/scenario/first.ks");
 
     // Raylib stuff...
@@ -288,7 +295,7 @@ int main() {
         ClearBackground(RAYWHITE);
         DrawText("FatamoruPORT! By Claire :3", 0, 0, 20, BLACK);
 
-        if (state.visual.base_layer.valid) {
+        if (state.visual.fore.base_layer.valid) {
             printf("Drawing..\n");
             DrawTexture(state.visual.base_layer.texture, 0, 0, WHITE);
         }
