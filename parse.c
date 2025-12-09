@@ -72,29 +72,69 @@ LabelNode* eat_label(char** src) {
 	return out;
 }
 
+CommandNode* command_from_line(char* line) {
+	CommandNode* out = malloc(sizeof(CommandNode));
+	out->base = (BaseNode) { .type = NODE_COMMAND };
+	out->args = v_new();
+
+	Vector parts = slice_command(line);
+
+    for (int i=0; i<parts.length; i++) {
+        char* arg_str = v_get(&parts, i);
+
+        CommandArg* arg = malloc(sizeof(CommandArg));
+        arg->key = malloc(64);
+        arg->value = malloc(64);
+        arg->value[0] = '\0';
+
+        char* buf = arg->key;
+        int buf_i = 0;
+
+        while (*arg_str) {
+            if (*arg_str == '=') {
+                buf[buf_i] = '\0';
+                buf = arg->value;
+                buf_i = 0;
+
+                arg_str++;
+                continue;
+            }
+
+            buf[buf_i++] = *arg_str;
+            assert(buf_i < 64);
+            arg_str++;
+        }
+
+        buf[buf_i] = '\0';
+        strip_quotes(arg->value);
+        v_append(&out->args, arg);
+    }
+
+    return out;
+}
+
 CommandNode* eat_bracket_command(char** src) {
 	assert(**src == '[');
 	(*src)++;
 
     const int LINE_LENGTH = 255;
-
-	CommandNode* out = malloc(sizeof(CommandNode));
-	out->base = (BaseNode) { .type = NODE_COMMAND };
-	out->cmd = malloc(LINE_LENGTH + 1);
-    int buf_i = 0;
+	char* line = malloc(LINE_LENGTH + 1);
+    int line_i = 0;
 
     char c;
 	while ((c = **src)) {
 		if (c == ']') break;
-        out->cmd[buf_i++] = c;
-        assert(buf_i < LINE_LENGTH);
+        line[line_i++] = c;
+        assert(line_i < LINE_LENGTH);
 
 		(*src)++;
 	}
 
-    out->cmd[buf_i] = '\0';
+    line[line_i] = '\0';
 	(*src)++;
 
+    CommandNode* out = command_from_line(line);
+    free(line);
 	return out;
 }
 
@@ -103,10 +143,7 @@ CommandNode* eat_at_command(char** src) {
 	(*src)++;
 
     const int LINE_LENGTH = 127;
-
-	CommandNode* out = malloc(sizeof(CommandNode));
-	out->base = (BaseNode) { .type = NODE_COMMAND };
-	out->cmd = malloc(LINE_LENGTH + 1);
+	char* line = malloc(LINE_LENGTH + 1);
     int line_i = 0;
 
     char c;
@@ -114,28 +151,57 @@ CommandNode* eat_at_command(char** src) {
         char c = **src;
         if (c == '\n') break;
 
-        out->cmd[line_i++] = c;
+        line[line_i++] = c;
         assert(line_i < LINE_LENGTH);
 
         (*src)++;
     }
+    line[line_i] = '\0';
 
-    out->cmd[line_i] = '\0';
-
+    CommandNode* out = command_from_line(line);
+    free(line);
     return out;
 }
 
-void process_command(char* cmd_line, char** src) {
-    if (strcmp(cmd_line, "iscript") == 0) {
+void process_command(CommandNode* command, char** src) {
+    CommandArg* arg = v_get(&command->args, 0);
+    char* cmd = arg->key;
+    printf("Try: %s\n", cmd);
+
+    if (strcmp(cmd, "iscript") == 0) {
+        printf("Umm\n");
         // Keep looping until we find a thing that closes it
         while (**src) {
             // If we find '\n@' we might be onto something
             if (*((*src)++) != '\n') continue;
-            if (**src != '@') continue;
 
-            CommandNode* node = eat_at_command(src);
-            bool out_we_go = strcmp(node->cmd, "endscript") == 0;
+            char c = **src;
+            if (c != '@' && c != '[') continue;
+
+            CommandNode* node;
+
+            if (c == '@') {
+                node = eat_at_command(src);
+            } else if (c == '[') {
+                node = eat_bracket_command(src);
+            }
+
+            assert(node);
+            
+            CommandArg* n_cmd = v_get(&node->args, 0);
+            bool out_we_go = strcmp(n_cmd->key, "endscript") == 0;
             if (out_we_go) break;
+        }
+    } else if (strcmp(cmd, "if") == 0) {
+        // TODO
+        while (**src) {
+            BaseNode* node = parse_one(src);
+            if (!node) continue;
+            if (node->type != NODE_COMMAND) continue;
+            CommandNode* cmd_node = (CommandNode*)node;
+
+            char* n_cmd = ((CommandArg*)v_get(&cmd_node->args, 0))->key;
+            if (strcmp(n_cmd, "endif")) break;
         }
     }
 }
@@ -150,11 +216,11 @@ BaseNode* parse_one(char** src) {
 
     if (c == '[') {
         CommandNode* command = eat_bracket_command(src);
-        process_command(command->cmd, src);
+        process_command(command, src);
 		return (BaseNode*)command;
     } else if (c == '@') {
         CommandNode* command = eat_at_command(src);
-        process_command(command->cmd, src);
+        process_command(command, src);
 		return (BaseNode*)command;
     } else if (c == '*') {
 		return (BaseNode*)eat_label(src);
@@ -180,7 +246,95 @@ void print_node(BaseNode* base_node) {
 		printf("\n");
 	} else if (base_node->type == NODE_COMMAND) {
 		CommandNode* node = (CommandNode*)base_node;
-		printf("[command] '%s'\n", node->cmd);
+		printf("[command]");
+
+        for (int i=0; i<node->args.length; i++) {
+            CommandArg* arg = v_get(&node->args, i);
+            printf(" %s", arg->key);
+            if (arg->value && *arg->value) {
+                printf(":%s", arg->value);
+            }
+        }
+
+        printf("\n");
 	}
+}
+
+char* get_arg_str(Vector* args, char* key) {
+    for (int i=0; i<args->length; i++) {
+        CommandArg* arg = v_get(args, i);
+        if (strcmp(arg->key, key) == 0) return arg->value;
+    }
+
+    return NULL;
+}
+
+int get_arg_int(Vector* args, char* key) {
+    char* str = get_arg_str(args, key);
+    if (!str) return NO_ARG_INT;
+
+    // YOLO
+    int out = atoi(str);
+
+    // Whatever man
+    assert(out != NO_ARG_INT);
+
+    return out;
+}
+
+void strip_quotes(char* str) {
+    // hehe not mine. I'm evil and lazy
+    size_t len = strlen(str);
+
+    if (len > 1 && str[0] == '"' && str[len - 1] == '"') {
+        memmove(str, str + 1, len - 2);
+        str[len - 2] = '\0';
+    }
+}
+
+Vector slice_command(char* cmd) {
+	Vector parts = v_new();
+
+	char* active_buffer = NULL;
+	int i = 0;
+
+	while (*cmd) {
+		if (!active_buffer) {
+			active_buffer = malloc(64);
+			i = 0;
+		}
+
+		if (*cmd == ' ') {
+			while (*cmd == ' ') cmd++;
+			if (!*cmd) break;
+
+			bool next_eq = (*cmd == '=');
+            bool prev_eq = (i > 0 && active_buffer[i-1] == '=');
+
+			if (!next_eq && !prev_eq) {
+				active_buffer[i] = '\0';
+				v_append(&parts, active_buffer);
+				active_buffer = NULL;
+
+				continue;
+			}
+
+			if (next_eq) {
+				active_buffer[i++] = '=';
+				cmd++;
+			}
+
+			continue;
+		}
+
+		if (!active_buffer) continue;
+		active_buffer[i++] = *cmd;
+		cmd++;
+	}
+
+	active_buffer[i] = '\0';
+	v_append(&parts, active_buffer);
+
+	return parts;
 }
 
