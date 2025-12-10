@@ -11,17 +11,23 @@
 
 typedef struct {
     Texture2D texture;
-    // Queen
     bool valid;
+	Vector children;
 } VisualLayer;
 
 typedef struct {
     VisualLayer base_layer;
+    VisualLayer layer_zero;
+    VisualLayer layer_one;
+    VisualLayer layer_two;
+    VisualLayer message_layer_zero;
+    VisualLayer message_layer_one;
 } VisualPage;
 
 typedef struct {
 	VisualPage fore;
 	VisualPage back;
+	int pointer_pos[2];
 } VisualScene;
 
 typedef struct {
@@ -30,6 +36,9 @@ typedef struct {
     float wait_timer_ms;
     int node_idx;
     VisualScene visual;
+
+	bool can_skip_wait;
+	bool can_skip_transition;
 
     bool wait_for_transition;
     float transition_max_ms;
@@ -116,6 +125,14 @@ bool run_command(CommandNode* command, FataState* state) {
 	if (strcmp("wait", cmd) == 0) {
         int time_ms = get_arg_int(args, "time");
         assert(time_ms != NO_ARG_INT);
+
+		bool can_skip = true;
+        char* can_skip_str = get_arg_str(args, "canskip");
+		if (can_skip_str) {
+			can_skip = strcmp("false", can_skip_str) != 0;
+		}
+
+		state->can_skip_wait = can_skip;
         state->wait_timer_ms = (float)time_ms;
         return true;
     } else if (strcmp("image", cmd) == 0) {
@@ -144,19 +161,19 @@ bool run_command(CommandNode* command, FataState* state) {
 
         if (strcmp(layer_str, "base") == 0) {
             layer = &page->base_layer;
+        } else if (strcmp(layer_str, "0") == 0) {
+            layer = &page->layer_zero;
+        } else if (strcmp(layer_str, "1") == 0) {
+            layer = &page->layer_one;
+        } else if (strcmp(layer_str, "2") == 0) {
+            layer = &page->layer_two;
+        } else if (strcmp(layer_str, "message0") == 0) {
+            layer = &page->message_layer_zero;
+        } else if (strcmp(layer_str, "message1") == 0) {
+            layer = &page->message_layer_one;
         } else {
-            printf("TODO\n");
-            printf("TODO\n");
-            printf("TODO\n");
-            printf("TODO\n");
-            printf("TODO\n");
-            printf("TODO\n");
-            printf("TODO\n");
-            printf("TODO\n");
-            printf("TODO\n");
-            printf("TODO\n");
-            // assert(false);
-            layer = &page->base_layer;
+			printf("Weird layer %s\n", layer_str);
+            assert(false);
         }
 
         if (layer->valid) {
@@ -196,13 +213,21 @@ bool run_command(CommandNode* command, FataState* state) {
         state->transition_max_ms = (float)time_ms;
         state->transition_remaining_ms = state->transition_max_ms;
     } else if (strcmp("wt", cmd) == 0) {
-        // TODO: canskip
+        char* can_skip_str = get_arg_str(args, "canskip");
+
+		bool can_skip = true;
+		if (can_skip_str) {
+			can_skip = strcmp("false", can_skip_str) != 0;
+		}
+
+		state->can_skip_transition = can_skip;
         state->wait_for_transition = true;
         return true;
     } else if (strcmp("s", cmd) == 0) {
         // STOP!
         state->stopped = true;
         return true;
+    } else if (strcmp("position", cmd) == 0) {
     }
 
     return false;
@@ -247,9 +272,13 @@ void frame_work(FataState* state, double delta_ms) {
     }
 }
 
-void initalize_visual(FataState* state) {
-	state->visual.fore.base_layer.valid = false;
-	state->visual.back.base_layer.valid = false;
+void init_page(VisualPage* page) {
+	page->base_layer.valid = false;
+	page->layer_zero.valid = false;
+	page->layer_one.valid = false;
+	page->layer_two.valid = false;
+	page->message_layer_zero.valid = false;
+	page->message_layer_one.valid = false;
 }
 
 void draw_layer(VisualLayer* layer) {
@@ -260,18 +289,29 @@ void draw_layer(VisualLayer* layer) {
 
 void draw_page(VisualPage* page) {
     draw_layer(&page->base_layer);
+    draw_layer(&page->layer_zero);
+    draw_layer(&page->layer_one);
+    draw_layer(&page->layer_two);
+    draw_layer(&page->message_layer_zero);
+    draw_layer(&page->message_layer_one);
 }
 
 int main() {
 	printf("FataMoru!! ^-^\n");
 
     FataState state;
-	initalize_visual(&state);
+
+	init_page(&state.visual.fore);
+	init_page(&state.visual.back);
+
     state.wait_timer_ms = 0.0f;
     state.last_time_ms = get_time_ms();
     state.transition_remaining_ms = 0.0f;
     state.transition_max_ms = 0.0f;
     state.stopped = false;
+	state.can_skip_transition = false;
+	state.can_skip_wait = false;
+
     load(&state, "cache/scenario/first.ks", NULL);
 
     // Raylib stuff...
@@ -285,9 +325,25 @@ int main() {
         double now = get_time_ms();
         double delta_ms = now - state.last_time_ms;
 
-        delta_ms *= 10.0;
+        // delta_ms *= 10.0;
 
         state.last_time_ms = now;
+
+		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+			if (
+				state.can_skip_transition &&
+				state.transition_remaining_ms > 0.0f
+			) {
+				state.transition_remaining_ms = 0.0f;
+				state.can_skip_transition = false;
+			} else if (
+				state.can_skip_wait &&
+				state.wait_timer_ms > 0.0f
+			) {
+				state.wait_timer_ms = 0.0f;
+				state.can_skip_wait = false;
+			}
+		}
 
         frame_work(&state, delta_ms);
 
