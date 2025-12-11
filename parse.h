@@ -50,7 +50,7 @@ CommandNode* eat_bracket_command(char** src);
 CommandNode* eat_at_command(char** src);
 void process_command(CommandNode* command, char** src);
 BaseNode* parse_one(char** src);
-void print_node(BaseNode* base_node);
+void print_node(BaseNode* base_node, const char* context);
 Vector slice_command(char* cmd);
 void strip_quotes(char* str);
 char* get_arg_str(Vector* args, char* key);

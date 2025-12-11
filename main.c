@@ -26,11 +26,29 @@ typedef struct {
     Texture2D hover;
 } ButtonTextureCollection;
 
+typedef enum {
+    VO_BUTTON,
+    VO_TEXT,
+} VisualObjectType;
+
 typedef struct {
+    VisualObjectType type;
+} VisualObject;
+
+typedef struct {
+    VisualObject base;
+
 	Vec2 position;
 	char* target;
 	ButtonTextureCollection textures;
-} Button;
+} ButtonObject;
+
+typedef struct {
+    VisualObject base;
+
+	Vec2 position;
+    char* text;
+} TextObject;
 
 typedef struct {
     Texture2D texture;
@@ -63,17 +81,19 @@ typedef struct {
 typedef struct {
 	char* script_path;
 	int node_idx;
+    Vector* target_nodes;
 } ScriptLocation;
 
 typedef struct {
     char* name;
     Vector children;
-    ScriptLocation location;
 } Macro;
 
 typedef struct {
-	char* script_path;
     Vector nodes;
+    Vector* target_nodes;
+
+	char* script_path;
     double last_time_ms;
     float wait_timer_ms;
     int node_idx;
@@ -91,28 +111,32 @@ typedef struct {
 
 	Vector call_stack;
     Vector macros;
+
+    char* speaker;
 } FataState;
 
 void breakpoint(FataState* state) {
     state->stopped_until_click = true;
 }
 
-void push_to_callstack(FataState* state) {
-    ScriptLocation* where = malloc(sizeof(ScriptLocation));
-    where->script_path = state->script_path;
-    where->node_idx = state->node_idx;
-    v_append(&state->call_stack, where);
-}
-
 void load(FataState* state, char* path, char* label_target) {
 	state->stopped = false;
 	state->stopped_until_click = false;
     state->node_idx = 0;
+    state->target_nodes = &state->nodes;
 
-    if (path) {
+    printf(
+        "[load] Path: '%s', LabelTarget: '%s'\n",
+        path ? path : "(empty)",
+        label_target ? label_target : "(empty)"
+    );
+
+    bool same_path = !path || (state->script_path && strcmp(state->script_path, path) == 0);
+
+    if (path && !same_path) {
+        printf("[load] Loading from scratch!\n");
 		state->script_path = path;
 
-		printf("\n\nLOADINF FROM %s\n\n\n", path);
         state->nodes = v_new();
 
         // WARNING: When (if) we free later, the ptr will be gone! Save it!!
@@ -132,17 +156,28 @@ void load(FataState* state, char* path, char* label_target) {
 		if (node->type == NODE_COMMAND) {
 			CommandNode* cmd = (CommandNode*)node;
 
-			if (cmd->data_type == CMD_DATA_MACRO) {
+			if (cmd->data_type == CMD_DATA_MACRO && !same_path) {
                 char* name = get_arg_str(&cmd->args, "name");
                 assert(name);
 
-                Macro* macro = malloc(sizeof(Macro));
+                Macro* macro = NULL;
+
+                for (int j=0; j<state->macros.length; j++) {
+                    Macro* macro_candidate = v_get(&state->macros, j);
+                    if (strcmp(name, macro_candidate->name) != 0) continue;
+
+                    macro = macro_candidate;
+                    break;
+                }
+
+                if (macro) {
+                    // Do not make duplicate macros!
+                    continue;
+                }
+
+                macro = malloc(sizeof(Macro));
                 macro->name = name;
                 macro->children = *(Vector*)cmd->data;
-                macro->location = (ScriptLocation) {
-                    .script_path = state->script_path,
-                    .node_idx = i
-                };
 
                 v_append(&state->macros, macro);
 			}
@@ -152,13 +187,10 @@ void load(FataState* state, char* path, char* label_target) {
 
 			// Set node_idx to this label right off the bat
 			LabelNode* label = (LabelNode*)node;
-			printf("Heyyy maybe %s\n", label->label_id);
 
 			if (strcmp(label->label_id, label_target) != 0) continue;
 
-			printf("YESS!!\n");
 			state->node_idx = i;
-
 			label_target = NULL;
 		}
 	}
@@ -167,9 +199,27 @@ void load(FataState* state, char* path, char* label_target) {
 		printf("[err] Couldn't find label %s\n", label_target);
 		assert(!label_target);
 	}
+}
 
-    printf("\n\nEND LOAD\n\n\n");
+void push_to_callstack(FataState* state) {
+    ScriptLocation* where = malloc(sizeof(ScriptLocation));
+    where->script_path = state->script_path;
+    where->node_idx = state->node_idx;
+    where->target_nodes = state->target_nodes;
+    v_append(&state->call_stack, where);
+}
 
+void return_from_callstack(FataState* state) {
+    assert(state->call_stack.length);
+
+    ScriptLocation* where = v_pop(&state->call_stack, state->call_stack.length - 1);
+    assert(where);
+
+    load(state, where->script_path, NULL);
+    state->node_idx = where->node_idx;
+
+    // This is gonna bite me in the butt later
+    state->target_nodes = where->target_nodes;
 }
 
 ButtonTextureCollection read_button_textures(char* path) {
@@ -243,6 +293,10 @@ char* find_script(char* storage) {
 	return find_file(storage, patterns);
 }
 
+void* draw_text(char* text) {
+
+}
+
 bool run_command(CommandNode* command, FataState* state) {
     // returns true if showstopper
     Vector* args = &command->args;
@@ -255,19 +309,23 @@ bool run_command(CommandNode* command, FataState* state) {
         printf("Need to execute macro '%s':\n", macro->name);
 
         for (int j=0; j<macro->children.length; j++) {
-            printf("\t");
+            printf(" - ");
             BaseNode* child = v_get(&macro->children, j);
-            print_node(child);
+            print_node(child, "exec-macro");
         }
 
         push_to_callstack(state);
-
-        load(state, macro->location.script_path, NULL);
-		state->node_idx = macro->location.node_idx;
+        state->target_nodes = &macro->children;
+		state->node_idx = 0;
+        //load(state, macro->location.script_path, NULL);
         return true;
     }
 
-	if (strcmp("wait", cmd) == 0) {
+	if (strcmp("endmacro", cmd) == 0) {
+        return_from_callstack(state);
+        return true;
+
+    } else if (strcmp("wait", cmd) == 0) {
         int time_ms = get_arg_int(args, "time");
         assert(time_ms != NO_ARG_INT);
 
@@ -317,7 +375,7 @@ bool run_command(CommandNode* command, FataState* state) {
         } else if (strcmp(layer_str, "message1") == 0) {
             layer = &page->message_layer_one;
         } else {
-			printf("Weird layer %s\n", layer_str);
+			printf("[err] Weird layer %s\n", layer_str);
             assert(false);
         }
 
@@ -340,7 +398,6 @@ bool run_command(CommandNode* command, FataState* state) {
 			layer->texture_offset.x = left_px;
 		}
 
-        printf("Load from: %s\n", path);
     } else if (strcmp("jump", cmd) == 0) {
         char* storage = get_arg_str(args, "storage");
         char* path = storage ? find_script(storage) : NULL;
@@ -378,12 +435,10 @@ bool run_command(CommandNode* command, FataState* state) {
         return true;
     } else if (strcmp("locate", cmd) == 0) {
         int x = get_arg_int(args, "x");
-        assert(x != NO_ARG_INT);
-		state->visual.pointer_pos.x = x;
+        if (x != NO_ARG_INT) state->visual.pointer_pos.x = x;
 
         int y = get_arg_int(args, "y");
-        assert(y != NO_ARG_INT);
-		state->visual.pointer_pos.y = y;
+        if (y != NO_ARG_INT) state->visual.pointer_pos.y = y;
     } else if (strcmp("current", cmd) == 0) {
 		char* layer = get_arg_str(args, "layer");
 		assert(layer);
@@ -402,13 +457,6 @@ bool run_command(CommandNode* command, FataState* state) {
         char* path = find_image(storage);
         assert(path);
 
-		printf(
-			"Creating button from path: '%s' at (%d, %d)\n",
-			path,
-			state->visual.pointer_pos.x,
-			state->visual.pointer_pos.y
-		);
-
         char* target = get_arg_str(args, "target");
         if (target) {
             assert(target[0] == '*');
@@ -416,6 +464,7 @@ bool run_command(CommandNode* command, FataState* state) {
         }
 
 		Button* button = malloc(sizeof(Button));
+        button->base = (VisualObject) { .type = VO_BUTTON };
 		button->target = target;
 		button->position = state->visual.pointer_pos;
 
@@ -423,7 +472,7 @@ bool run_command(CommandNode* command, FataState* state) {
 
 		v_append(&state->visual.active_layer->children, button);
     } else if (strcmp("close", cmd) == 0) {
-		printf("Goodbye from The House in Fata Morgana...\n");
+		printf("[end] Goodbye from The House in Fata Morgana...\n");
 		exit(0);
 		return true;
     } else if (strcmp("p", cmd) == 0) {
@@ -441,7 +490,7 @@ bool run_command(CommandNode* command, FataState* state) {
 		}
 
 		if (!cool) {
-			printf("Ignoring call to '%s'--not cool.\n", storage);
+			printf("[call] Ignoring call to '%s'\n", storage);
 			return false;
 		}
 
@@ -459,13 +508,22 @@ bool run_command(CommandNode* command, FataState* state) {
         load(state, path, target);
 		return true;
     } else if (strcmp("return", cmd) == 0) {
-		assert(state->call_stack.length);
-		ScriptLocation* where = v_get(&state->call_stack, state->call_stack.length - 1);
-		assert(where);
-
-        load(state, where->script_path, NULL);
-		state->node_idx = where->node_idx;
+        return_from_callstack(state);
 		return true;
+    }
+
+    // Ported macros
+    if (strcmp("ctrlSpeakingPerson", cmd) == 0) {
+        char* speaker = get_arg_str(args, "speaker");
+        assert(speaker);
+        state->speaker = speaker;
+    } else if (strcmp("draw_name", cmd) == 0) {
+        char* name = get_arg_str(args, "name");
+        assert(name);
+    } else if (strcmp("c", cmd) == 0) {
+        char* text = get_arg_str(args, "text");
+        assert(text);
+        draw_text(text);
     }
 
     return false;
@@ -543,20 +601,20 @@ void frame_work(FataState* state, double delta_ms) {
         }
     }
 
-    while (state->node_idx < state->nodes.length) {
-        BaseNode* node = v_get(&state->nodes, state->node_idx++);
-		print_node(node);
+    while (state->node_idx < state->target_nodes->length) {
+        BaseNode* node = v_get(state->target_nodes, state->node_idx++);
+		print_node(node, "exec");
 
 		if (node->type == NODE_COMMAND) {
 			bool showstopper = run_command((CommandNode*)node, state);
             if (showstopper) return;
 		} else if (node->type == NODE_TEXT) {
             TextNode* text_node = (TextNode*)node;
-            printf("TEXT NODE: '%s'\n", text_node->text);
-            breakpoint(state);
-            return;
+            // TODO
         }
     }
+
+    printf("[exec] Done?\n");
 }
 
 void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
@@ -571,42 +629,42 @@ void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
 	}
 
 	for (int i=0; i<layer->children.length;i++) {
-		Button* button = v_get(&layer->children, i);
+        VisualObject* obj = v_get(&layer->children, i);
+        assert(obj);
 
-		int pos_x = button->position.x;
-		int pos_y = button->position.y;
+        if (obj->type == VO_BUTTON) {
+            ButtonObject* button = (ButtonObject*)obj;
 
-		//printf(
-		//	"Drawing button %d on '%s' at (%d, %d)\n",
-		//	i,
-		//	layer->name,
-		//	pos_x,
-		//	pos_y
-		//);
+            int pos_x = button->position.x;
+            int pos_y = button->position.y;
 
-		Rectangle rect = (Rectangle) {
-			pos_x,
-			pos_y,
-			button->textures.normal.width,
-			button->textures.normal.height
-		};
+            Rectangle rect = (Rectangle) {
+                pos_x,
+                pos_y,
+                button->textures.normal.width,
+                button->textures.normal.height
+            };
 
+            bool mouse_inside = CheckCollisionPointRec(mouse_pos, rect);
 
+            DrawTexture(
+                mouse_inside ? button->textures.hover : button->textures.normal,
+                pos_x,
+                pos_y,
+                WHITE
+            );
 
-		bool mouse_inside = CheckCollisionPointRec(mouse_pos, rect);
+            DrawRectangleLinesEx(rect, 1.0f, RED);
 
-		DrawTexture(
-			mouse_inside ? button->textures.hover : button->textures.normal,
-			pos_x,
-			pos_y,
-			WHITE
-		);
+            if (mouse_inside && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                load(state, NULL, button->target);
+            }
+        } else if (obj->type == VO_TEXT) {
+            TextObject* button = (Button*)obj;
 
-		DrawRectangleLinesEx(rect, 1.0f, RED);
-
-		if (mouse_inside && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-			load(state, NULL, button->target);
-		}
+        } else {
+            assert(false);
+        }
 	}
 }
 
@@ -648,6 +706,8 @@ int main() {
     // Raylib stuff...
     InitWindow(800, 600, "The House in Fata Morgana");
     SetTargetFPS(60);
+
+    SetTraceLogLevel(LOG_WARNING);
 
     RenderTexture2D fore_target = LoadRenderTexture(800, 600);
     RenderTexture2D back_target = LoadRenderTexture(800, 600);

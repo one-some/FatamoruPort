@@ -170,7 +170,6 @@ void process_command(CommandNode* command, char** src) {
     char* cmd = arg->key;
 
     if (strcmp(cmd, "iscript") == 0) {
-        printf("In iscript\n");
         // Keep looping until we find a thing that closes it
         while (**src) {
             // If we find '\n@' we might be onto something
@@ -193,7 +192,6 @@ void process_command(CommandNode* command, char** src) {
             bool out_we_go = strcmp(n_cmd->key, "endscript") == 0;
             if (out_we_go) break;
         }
-		printf("Out iscript\n");
     } else if (strcmp(cmd, "if") == 0) {
         // TODO
         while (**src) {
@@ -206,8 +204,6 @@ void process_command(CommandNode* command, char** src) {
             if (strcmp(n_cmd, "endif") == 0) break;
         }
     } else if (strcmp(cmd, "macro") == 0) {
-        printf("parsing macro...\n");
-
 		Vector* nodes = malloc(sizeof(Vector));
 		*nodes = v_new();
 
@@ -218,7 +214,7 @@ void process_command(CommandNode* command, char** src) {
             BaseNode* node = parse_one(src);
             if (!node) continue;
 
-            print_node(node);
+            print_node(node, "parse-macro");
 			v_append(nodes, node);
 
             if (node->type != NODE_COMMAND) continue;
@@ -227,8 +223,6 @@ void process_command(CommandNode* command, char** src) {
             char* n_cmd = ((CommandArg*)v_get(&cmd_node->args, 0))->key;
             if (strcmp(n_cmd, "endmacro") == 0) break;
         }
-
-        printf("Macro complete. %d nodes.\n", nodes->length);
     }
 }
 
@@ -283,15 +277,17 @@ BaseNode* parse_one(char** src) {
 	return NULL;
 }
 
-void print_node(BaseNode* base_node) {
+void print_node(BaseNode* base_node, const char* context) {
+    printf("[%s] ", context);
+
 	if (base_node->type == NODE_LABEL) {
 		LabelNode* node = (LabelNode*)base_node;
-		printf("[label] ID: '%s'", node->label_id);
+		printf("[lbl] LabelID: '%s'", node->label_id);
 		if (node->label_title) printf(" Title: '%s'", node->label_title);
 		printf("\n");
 	} else if (base_node->type == NODE_COMMAND) {
 		CommandNode* node = (CommandNode*)base_node;
-		printf("[command]");
+		printf("[cmd]");
 
         for (int i=0; i<node->args.length; i++) {
             CommandArg* arg = v_get(&node->args, i);
@@ -302,7 +298,10 @@ void print_node(BaseNode* base_node) {
         }
 
         printf("\n");
-	}
+	} else if (base_node->type == NODE_TEXT) {
+	    TextNode* node = (TextNode*)base_node;
+		printf("[txt] '%s'", node->text);
+    }
 }
 
 char* get_arg_str(Vector* args, char* key) {
@@ -340,12 +339,13 @@ void strip_quotes(char* str) {
 Vector slice_command(char* cmd) {
 	Vector parts = v_new();
 
+    const int MAX_BUF_LEN = 127;
 	char* active_buffer = NULL;
 	int i = 0;
 
 	while (*cmd) {
 		if (!active_buffer) {
-			active_buffer = malloc(64);
+			active_buffer = malloc(MAX_BUF_LEN + 1);
 			i = 0;
 		}
 
@@ -366,6 +366,7 @@ Vector slice_command(char* cmd) {
 
 			if (next_eq) {
 				active_buffer[i++] = '=';
+                assert(i < MAX_BUF_LEN);
 				cmd++;
 			}
 
