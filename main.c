@@ -106,32 +106,46 @@ void load(FataState* state, char* path, char* label_target) {
 
             v_append(&state->nodes, node);
         }
-    }
+	}
 
-    if (label_target) {
-        for (int i=0; i<state->nodes.length;i++) {
-            BaseNode* node = v_get(&state->nodes, i);
+	for (int i=0; i<state->nodes.length;i++) {
+		BaseNode* node = v_get(&state->nodes, i);
 
-            if (node->type != NODE_LABEL) continue;
+		if (node->type == NODE_COMMAND) {
+			CommandNode* cmd = (CommandNode*)node;
 
-            // Set node_idx to this label right off the bat
-            LabelNode* label = (LabelNode*)node;
-            printf("Heyyy maybe %s\n", label->label_id);
+			if (cmd->data_type == CMD_DATA_MACRO) {
+				printf("Macro:\n");
+				Vector* macro_children = cmd->data;
+				assert(macro_children);
 
-            if (strcmp(label->label_id, label_target) != 0) continue;
+				for (int i=0; i<macro_children->length; i++) {
+					BaseNode* node = v_get(macro_children, i);
+					print_node(node);
+				}
+			}
+		}
 
-            printf("YESS!!\n");
-            state->node_idx = i;
+		if (label_target && node->type == NODE_LABEL) {
 
-            label_target = NULL;
-            break;
-        }
+			// Set node_idx to this label right off the bat
+			LabelNode* label = (LabelNode*)node;
+			printf("Heyyy maybe %s\n", label->label_id);
 
-        if (label_target) {
-            printf("[err] Couldn't find label %s\n", label_target);
-            assert(!label_target);
-        }
-    }
+			if (strcmp(label->label_id, label_target) != 0) continue;
+
+			printf("YESS!!\n");
+			state->node_idx = i;
+
+			label_target = NULL;
+		}
+	}
+
+	if (label_target) {
+		printf("[err] Couldn't find label %s\n", label_target);
+		assert(!label_target);
+	}
+
     printf("\n\nEND LOAD\n\n\n");
 
 }

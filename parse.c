@@ -76,6 +76,8 @@ CommandNode* command_from_line(char* line) {
 	CommandNode* out = malloc(sizeof(CommandNode));
 	out->base = (BaseNode) { .type = NODE_COMMAND };
 	out->args = v_new();
+	out->data_type = CMD_DATA_NONE;
+	out->data = NULL;
 
 	Vector parts = slice_command(line);
 
@@ -169,7 +171,7 @@ void process_command(CommandNode* command, char** src) {
     printf("Process CMD: %s\n", cmd);
 
     if (strcmp(cmd, "iscript") == 0) {
-        printf("Umm\n");
+        printf("In iscript\n");
         // Keep looping until we find a thing that closes it
         while (**src) {
             // If we find '\n@' we might be onto something
@@ -192,6 +194,7 @@ void process_command(CommandNode* command, char** src) {
             bool out_we_go = strcmp(n_cmd->key, "endscript") == 0;
             if (out_we_go) break;
         }
+		printf("Out iscript\n");
     } else if (strcmp(cmd, "if") == 0) {
         // TODO
         while (**src) {
@@ -202,6 +205,25 @@ void process_command(CommandNode* command, char** src) {
 
             char* n_cmd = ((CommandArg*)v_get(&cmd_node->args, 0))->key;
             if (strcmp(n_cmd, "endif")) break;
+        }
+    } else if (strcmp(cmd, "macro") == 0) {
+		Vector* nodes = malloc(sizeof(Vector));
+		*nodes = v_new();
+
+		command->data_type = CMD_DATA_MACRO;
+		command->data = &nodes;
+
+        while (**src) {
+            BaseNode* node = parse_one(src);
+            if (!node) continue;
+
+			v_append(nodes, node);
+
+            if (node->type != NODE_COMMAND) continue;
+            CommandNode* cmd_node = (CommandNode*)node;
+
+            char* n_cmd = ((CommandArg*)v_get(&cmd_node->args, 0))->key;
+            if (strcmp(n_cmd, "endmacro")) break;
         }
     }
 }

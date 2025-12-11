@@ -13,9 +13,18 @@ typedef struct {
 	NodeType type;
 } BaseNode;
 
+typedef enum {
+	CMD_DATA_NONE,
+	CMD_DATA_IF,
+	CMD_DATA_MACRO,
+} CommandDataType;
+
 typedef struct {
 	BaseNode base;
     Vector args;
+
+	CommandDataType data_type;
+	void* data;
 } CommandNode;
 
 typedef struct {
