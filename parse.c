@@ -117,7 +117,7 @@ CommandNode* eat_bracket_command(char** src) {
 	assert(**src == '[');
 	(*src)++;
 
-    const int LINE_LENGTH = 255;
+    const int LINE_LENGTH = 511;
 	char* line = malloc(LINE_LENGTH + 1);
     int line_i = 0;
 
