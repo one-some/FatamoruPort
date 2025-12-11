@@ -63,7 +63,13 @@ typedef struct {
 typedef struct {
 	char* script_path;
 	int node_idx;
-} CallstackEntry;
+} ScriptLocation;
+
+typedef struct {
+    char* name;
+    Vector children;
+    ScriptLocation location;
+} Macro;
 
 typedef struct {
 	char* script_path;
@@ -84,7 +90,19 @@ typedef struct {
 	bool stopped_until_click;
 
 	Vector call_stack;
+    Vector macros;
 } FataState;
+
+void breakpoint(FataState* state) {
+    state->stopped_until_click = true;
+}
+
+void push_to_callstack(FataState* state) {
+    ScriptLocation* where = malloc(sizeof(ScriptLocation));
+    where->script_path = state->script_path;
+    where->node_idx = state->node_idx;
+    v_append(&state->call_stack, where);
+}
 
 void load(FataState* state, char* path, char* label_target) {
 	state->stopped = false;
@@ -115,14 +133,18 @@ void load(FataState* state, char* path, char* label_target) {
 			CommandNode* cmd = (CommandNode*)node;
 
 			if (cmd->data_type == CMD_DATA_MACRO) {
-				printf("Macro:\n");
-				Vector* macro_children = cmd->data;
-				assert(macro_children);
+                char* name = get_arg_str(&cmd->args, "name");
+                assert(name);
 
-				for (int i=0; i<macro_children->length; i++) {
-					BaseNode* node = v_get(macro_children, i);
-					print_node(node);
-				}
+                Macro* macro = malloc(sizeof(Macro));
+                macro->name = name;
+                macro->children = *(Vector*)cmd->data;
+                macro->location = (ScriptLocation) {
+                    .script_path = state->script_path,
+                    .node_idx = i
+                };
+
+                v_append(&state->macros, macro);
 			}
 		}
 
@@ -225,6 +247,25 @@ bool run_command(CommandNode* command, FataState* state) {
     // returns true if showstopper
     Vector* args = &command->args;
 	char* cmd = ((CommandArg*)v_get(args, 0))->key;
+    
+    for (int i=0; i<state->macros.length; i++) {
+        Macro* macro = v_get(&state->macros, i);
+        if (strcmp(macro->name, cmd) != 0) continue;
+
+        printf("Need to execute macro '%s':\n", macro->name);
+
+        for (int j=0; j<macro->children.length; j++) {
+            printf("\t");
+            BaseNode* child = v_get(&macro->children, j);
+            print_node(child);
+        }
+
+        push_to_callstack(state);
+
+        load(state, macro->location.script_path, NULL);
+		state->node_idx = macro->location.node_idx;
+        return true;
+    }
 
 	if (strcmp("wait", cmd) == 0) {
         int time_ms = get_arg_int(args, "time");
@@ -413,22 +454,19 @@ bool run_command(CommandNode* command, FataState* state) {
             target++;
         }
 
-		CallstackEntry* where = malloc(sizeof(CallstackEntry));
-		where->script_path = state->script_path;
-		where->node_idx = state->node_idx;
-		v_append(&state->call_stack, where);
+        push_to_callstack(state);
 
         load(state, path, target);
 		return true;
     } else if (strcmp("return", cmd) == 0) {
 		assert(state->call_stack.length);
-		CallstackEntry* where = v_get(&state->call_stack, state->call_stack.length - 1);
+		ScriptLocation* where = v_get(&state->call_stack, state->call_stack.length - 1);
 		assert(where);
 
         load(state, where->script_path, NULL);
 		state->node_idx = where->node_idx;
 		return true;
-	}
+    }
 
     return false;
 }
@@ -512,7 +550,12 @@ void frame_work(FataState* state, double delta_ms) {
 		if (node->type == NODE_COMMAND) {
 			bool showstopper = run_command((CommandNode*)node, state);
             if (showstopper) return;
-		}
+		} else if (node->type == NODE_TEXT) {
+            TextNode* text_node = (TextNode*)node;
+            printf("TEXT NODE: '%s'\n", text_node->text);
+            breakpoint(state);
+            return;
+        }
     }
 }
 
@@ -598,6 +641,7 @@ int main() {
 	state.can_skip_transition = false;
 	state.can_skip_wait = false;
 	state.call_stack = v_new();
+    state.macros = v_new();
 
     load(&state, "cache/scenario/first.ks", NULL);
 
@@ -616,7 +660,7 @@ int main() {
 
         state.last_time_ms = now;
 
-		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_LEFT_CONTROL)) {
 			state.stopped_until_click = false;
 
 			if (

@@ -168,7 +168,6 @@ CommandNode* eat_at_command(char** src) {
 void process_command(CommandNode* command, char** src) {
     CommandArg* arg = v_get(&command->args, 0);
     char* cmd = arg->key;
-    printf("Process CMD: %s\n", cmd);
 
     if (strcmp(cmd, "iscript") == 0) {
         printf("In iscript\n");
@@ -204,27 +203,32 @@ void process_command(CommandNode* command, char** src) {
             CommandNode* cmd_node = (CommandNode*)node;
 
             char* n_cmd = ((CommandArg*)v_get(&cmd_node->args, 0))->key;
-            if (strcmp(n_cmd, "endif")) break;
+            if (strcmp(n_cmd, "endif") == 0) break;
         }
     } else if (strcmp(cmd, "macro") == 0) {
+        printf("parsing macro...\n");
+
 		Vector* nodes = malloc(sizeof(Vector));
 		*nodes = v_new();
 
 		command->data_type = CMD_DATA_MACRO;
-		command->data = &nodes;
+		command->data = nodes;
 
         while (**src) {
             BaseNode* node = parse_one(src);
             if (!node) continue;
 
+            print_node(node);
 			v_append(nodes, node);
 
             if (node->type != NODE_COMMAND) continue;
             CommandNode* cmd_node = (CommandNode*)node;
 
             char* n_cmd = ((CommandArg*)v_get(&cmd_node->args, 0))->key;
-            if (strcmp(n_cmd, "endmacro")) break;
+            if (strcmp(n_cmd, "endmacro") == 0) break;
         }
+
+        printf("Macro complete. %d nodes.\n", nodes->length);
     }
 }
 
