@@ -166,7 +166,7 @@ CommandNode* eat_at_command(char** src) {
 void process_command(CommandNode* command, char** src) {
     CommandArg* arg = v_get(&command->args, 0);
     char* cmd = arg->key;
-    printf("Try: %s\n", cmd);
+    printf("Process CMD: %s\n", cmd);
 
     if (strcmp(cmd, "iscript") == 0) {
         printf("Umm\n");
@@ -231,8 +231,27 @@ BaseNode* parse_one(char** src) {
         }
 		return NULL;
     } else {
-        printf("Didn't expect '%c' (%d)\n", c, c);
-        assert(false);
+		TextNode* out = malloc(sizeof(TextNode));
+		out->base = (BaseNode) { .type = NODE_TEXT };
+		out->text = malloc(256);
+
+		char c;
+		int i = 0;
+		while ((c = **src)) {
+			
+			if (c == '@') break;
+			if (c == '[') break;
+			if (c == '*') break;
+			if (c == ';') break;
+
+			assert(i < 255);
+			out->text[i++] = c;
+
+			(*src)++;
+		}
+		out->text[i] = '\0';
+
+		return (BaseNode*)out;
     }
 
 	return NULL;

@@ -6,6 +6,7 @@
 typedef enum {
 	NODE_COMMAND,
 	NODE_LABEL,
+	NODE_TEXT,
 } NodeType;
 
 typedef struct {
@@ -22,6 +23,11 @@ typedef struct {
 	char* label_id;
 	char* label_title;
 } LabelNode;
+
+typedef struct {
+	BaseNode base;
+	char* text;
+} TextNode;
 
 typedef struct {
     char* key;

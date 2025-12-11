@@ -9,6 +9,12 @@
 #include "vector.h"
 #include "parse.h"
 
+const char* useful_scripts[] = {
+	"macro.ks",
+	"macros_sprites.ks",
+	NULL
+};
+
 typedef struct {
 	int x;
 	int y;
@@ -55,6 +61,12 @@ typedef struct {
 } VisualScene;
 
 typedef struct {
+	char* script_path;
+	int node_idx;
+} CallstackEntry;
+
+typedef struct {
+	char* script_path;
     Vector nodes;
     double last_time_ms;
     float wait_timer_ms;
@@ -69,13 +81,19 @@ typedef struct {
     float transition_remaining_ms;
 
     bool stopped;
+	bool stopped_until_click;
+
+	Vector call_stack;
 } FataState;
 
 void load(FataState* state, char* path, char* label_target) {
 	state->stopped = false;
+	state->stopped_until_click = false;
     state->node_idx = 0;
 
     if (path) {
+		state->script_path = path;
+
 		printf("\n\nLOADINF FROM %s\n\n\n", path);
         state->nodes = v_new();
 
@@ -149,17 +167,7 @@ ButtonTextureCollection read_button_textures(char* path) {
 	return textures;
 }
 
-char* find_image(char* storage) {
-    const char *patterns[] = {
-        "./cache/bgimage/%s.png",
-        "./cache/bgimage/%s.jpg",
-        "./cache/image/%s.png",
-        "./cache/image/%s.jpg",
-        "./cache/fgimage/%s.png",
-        "./cache/fgimage/%s.jpg",
-        NULL
-    };
-
+char* find_file(char* storage, const char* patterns[]) {
     for (int i=0; ; i++) {
         if (!patterns[i]) break;
 
@@ -174,6 +182,29 @@ char* find_image(char* storage) {
     }
 
     assert(false);
+}
+
+char* find_image(char* storage) {
+	const char* patterns[] = {
+		"./cache/bgimage/%s.png",
+		"./cache/bgimage/%s.jpg",
+		"./cache/image/%s.png",
+		"./cache/image/%s.jpg",
+		"./cache/fgimage/%s.png",
+		"./cache/fgimage/%s.jpg",
+		NULL
+	};
+	return find_file(storage, patterns);
+}
+
+char* find_script(char* storage) {
+	const char* patterns[] = {
+		"./cache/scenario/%s",
+		"./cache/others/%s",
+		"./cache/system/%s",
+		NULL
+	};
+	return find_file(storage, patterns);
 }
 
 bool run_command(CommandNode* command, FataState* state) {
@@ -257,14 +288,7 @@ bool run_command(CommandNode* command, FataState* state) {
         printf("Load from: %s\n", path);
     } else if (strcmp("jump", cmd) == 0) {
         char* storage = get_arg_str(args, "storage");
-        char* path = NULL;
-
-        if (storage) {
-            char* path_buffer = malloc(256);
-            snprintf(path_buffer, 256, "cache/scenario/%s", storage);
-            path = path_buffer;
-			printf("Path: '%s'\n", path);
-        }
+        char* path = storage ? find_script(storage) : NULL;
 
         char* target = get_arg_str(args, "target");
         if (target) {
@@ -347,6 +371,49 @@ bool run_command(CommandNode* command, FataState* state) {
 		printf("Goodbye from The House in Fata Morgana...\n");
 		exit(0);
 		return true;
+    } else if (strcmp("p", cmd) == 0) {
+		state->stopped_until_click = true;
+		return true;
+    } else if (strcmp("call", cmd) == 0) {
+		char* storage = get_arg_str(args, "storage");
+		assert(storage);
+
+		bool cool = false;
+		for (int i=0; useful_scripts[i]; i++) {
+			if (strcmp(useful_scripts[i], storage) != 0) continue;
+			cool = true;
+			break;
+		}
+
+		if (!cool) {
+			printf("Ignoring call to '%s'--not cool.\n", storage);
+			return false;
+		}
+
+		char* path = find_script(storage);
+		assert(path);
+
+		char* target = get_arg_str(args, "target");
+        if (target) {
+            assert(target[0] == '*');
+            target++;
+        }
+
+		CallstackEntry* where = malloc(sizeof(CallstackEntry));
+		where->script_path = state->script_path;
+		where->node_idx = state->node_idx;
+		v_append(&state->call_stack, where);
+
+        load(state, path, target);
+		return true;
+    } else if (strcmp("return", cmd) == 0) {
+		assert(state->call_stack.length);
+		CallstackEntry* where = v_get(&state->call_stack, state->call_stack.length - 1);
+		assert(where);
+
+        load(state, where->script_path, NULL);
+		state->node_idx = where->node_idx;
+		return true;
 	}
 
     return false;
@@ -358,11 +425,43 @@ double get_time_ms() {
     return ((tv.tv_sec) * 1000.0d) + (tv.tv_usec / 1000.0d);
 }
 
+void unload_page_textures(VisualPage* page) {
+    VisualLayer* layers[] = {
+        &page->base_layer, &page->layer_zero, &page->layer_one, 
+        &page->layer_two, &page->message_layer_zero, &page->message_layer_one
+    };
+
+    for (int i = 0; i < 6; i++) {
+        if (layers[i]->texture_valid) {
+            UnloadTexture(layers[i]->texture);
+            layers[i]->texture_valid = false;
+        }
+    }
+}
+
+void init_layer(VisualLayer* layer, char* name) {
+	layer->texture_valid = false;
+	layer->texture_offset = (Vec2) { 0, 0 };
+	layer->name = name;
+	layer->children = v_new();
+}
+
+void init_page(VisualPage* page) {
+	init_layer(&page->base_layer, "base");
+	init_layer(&page->layer_zero, "0");
+	init_layer(&page->layer_one, "1");
+	init_layer(&page->layer_two, "2");
+	init_layer(&page->message_layer_zero, "message0");
+	init_layer(&page->message_layer_one, "message1");
+}
+
 void stop_transition(FataState* state) {
-	// ptrdiff_t offset = (char*) state->visual.active_layer - (char*) &state->visual.fore;
-	// VisualLayer* back_layer = (VisualLayer*)((char*)&state->visual.back + offset);
-	// *state->visual.active_layer = *back_layer;
+	unload_page_textures(&state->visual.fore);
 	state->visual.fore = state->visual.back;
+	init_page(&state->visual.back);
+	
+	state->visual.fore.name = "fore";
+    state->visual.back.name = "back";
 
 	state->transition_max_ms = 0.0f;
 	state->transition_remaining_ms = 0.0f;
@@ -381,6 +480,7 @@ void frame_work(FataState* state, double delta_ms) {
     }
 
     if (state->stopped) return;
+    if (state->stopped_until_click) return;
 
     if (state->wait_timer_ms > 0.0f) {
         state->wait_timer_ms -= delta_ms;
@@ -400,22 +500,6 @@ void frame_work(FataState* state, double delta_ms) {
             if (showstopper) return;
 		}
     }
-}
-
-void init_layer(VisualLayer* layer, char* name) {
-	layer->texture_valid = false;
-	layer->texture_offset = (Vec2) { 0, 0 };
-	layer->name = name;
-	layer->children = v_new();
-}
-
-void init_page(VisualPage* page) {
-	init_layer(&page->base_layer, "base");
-	init_layer(&page->layer_zero, "0");
-	init_layer(&page->layer_one, "1");
-	init_layer(&page->layer_two, "2");
-	init_layer(&page->message_layer_zero, "message0");
-	init_layer(&page->message_layer_one, "message1");
 }
 
 void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
@@ -492,13 +576,14 @@ int main() {
 	init_page(&state.visual.fore);
 	init_page(&state.visual.back);
 
+	state.script_path = NULL;
     state.wait_timer_ms = 0.0f;
     state.last_time_ms = get_time_ms();
     state.transition_remaining_ms = 0.0f;
     state.transition_max_ms = 0.0f;
-    state.stopped = false;
 	state.can_skip_transition = false;
 	state.can_skip_wait = false;
+	state.call_stack = v_new();
 
     load(&state, "cache/scenario/first.ks", NULL);
 
@@ -518,6 +603,8 @@ int main() {
         state.last_time_ms = now;
 
 		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+			state.stopped_until_click = false;
+
 			if (
 				state.can_skip_transition &&
 				state.transition_remaining_ms > 0.0f
@@ -549,7 +636,6 @@ int main() {
         }
 
         if (fore_to_back_fade > 0.0f) {
-			//printf("ForeBackFade: %f\n", fore_to_back_fade);
             BeginTextureMode(back_target);
                 draw_page(&state, &state.visual.back, mouse_pos);
             EndTextureMode();
