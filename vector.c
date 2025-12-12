@@ -30,6 +30,13 @@ void* v_pop(Vector* v, size_t idx) {
 	return val;
 }
 
+void v_clear(Vector* v) {
+	free(v->content);
+	v->content = NULL;
+	v->mem_length = 0;
+	v->length = 0;
+}
+
 size_t v_append(Vector* v, void* value) {
 	if (v->mem_length < v->length + 1) {
 		size_t new_mem_length = (v->length + 1) * 2;

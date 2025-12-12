@@ -12,4 +12,4 @@ void* v_get(Vector* v, size_t idx);
 void* v_pop(Vector* v, size_t idx);
 size_t v_append(Vector* v, void* value);
 void v_deepfree(Vector* v);
-
+void v_clear(Vector* v);

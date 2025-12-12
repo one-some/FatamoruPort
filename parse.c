@@ -85,8 +85,11 @@ CommandNode* command_from_line(char* line) {
         char* arg_str = v_get(&parts, i);
 
         CommandArg* arg = malloc(sizeof(CommandArg));
-        arg->key = malloc(64);
-        arg->value = malloc(64);
+
+		const int BUF_LEN = 127;
+
+        arg->key = malloc(BUF_LEN + 1);
+        arg->value = malloc(BUF_LEN + 1);
         arg->value[0] = '\0';
 
         char* buf = arg->key;
@@ -103,7 +106,7 @@ CommandNode* command_from_line(char* line) {
             }
 
             buf[buf_i++] = *arg_str;
-            assert(buf_i < 64);
+            assert(buf_i < BUF_LEN);
             arg_str++;
         }
 
@@ -291,6 +294,7 @@ void print_node(BaseNode* base_node, const char* context) {
 
         for (int i=0; i<node->args.length; i++) {
             CommandArg* arg = v_get(&node->args, i);
+            //printf(" (%d)%s", i, arg->key);
             printf(" %s", arg->key);
             if (arg->value && *arg->value) {
                 printf(":%s", arg->value);
@@ -341,6 +345,7 @@ Vector slice_command(char* cmd) {
 
     const int MAX_BUF_LEN = 127;
 	char* active_buffer = NULL;
+	char quote = '\0';
 	int i = 0;
 
 	while (*cmd) {
@@ -349,7 +354,19 @@ Vector slice_command(char* cmd) {
 			i = 0;
 		}
 
-		if (*cmd == ' ') {
+		if (!quote && (*cmd == '"' || *cmd == '\'')) {
+			quote = *cmd;
+			cmd++;
+			continue;
+		}
+
+		if (quote && quote == *cmd) {
+			quote = '\0';
+			cmd++;
+			continue;
+		}
+
+		if (!quote && *cmd == ' ') {
 			while (*cmd == ' ') cmd++;
 			if (!*cmd) break;
 

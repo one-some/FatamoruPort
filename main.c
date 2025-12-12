@@ -293,33 +293,19 @@ char* find_script(char* storage) {
 	return find_file(storage, patterns);
 }
 
-void* draw_text(char* text) {
+void* draw_text(FataState* state, char* text) {
+	TextObject* text_object = malloc(sizeof(TextObject));
+	text_object->base = (VisualObject) { .type = VO_TEXT };
+	text_object->text = text;
+	text_object->position = state->visual.pointer_pos;
 
+	v_append(&state->visual.active_layer->children, text_object);
 }
 
 bool run_command(CommandNode* command, FataState* state) {
     // returns true if showstopper
     Vector* args = &command->args;
 	char* cmd = ((CommandArg*)v_get(args, 0))->key;
-    
-    for (int i=0; i<state->macros.length; i++) {
-        Macro* macro = v_get(&state->macros, i);
-        if (strcmp(macro->name, cmd) != 0) continue;
-
-        printf("Need to execute macro '%s':\n", macro->name);
-
-        for (int j=0; j<macro->children.length; j++) {
-            printf(" - ");
-            BaseNode* child = v_get(&macro->children, j);
-            print_node(child, "exec-macro");
-        }
-
-        push_to_callstack(state);
-        state->target_nodes = &macro->children;
-		state->node_idx = 0;
-        //load(state, macro->location.script_path, NULL);
-        return true;
-    }
 
 	if (strcmp("endmacro", cmd) == 0) {
         return_from_callstack(state);
@@ -463,7 +449,7 @@ bool run_command(CommandNode* command, FataState* state) {
             target++;
         }
 
-		Button* button = malloc(sizeof(Button));
+		ButtonObject* button = malloc(sizeof(ButtonObject));
         button->base = (VisualObject) { .type = VO_BUTTON };
 		button->target = target;
 		button->position = state->visual.pointer_pos;
@@ -510,6 +496,11 @@ bool run_command(CommandNode* command, FataState* state) {
     } else if (strcmp("return", cmd) == 0) {
         return_from_callstack(state);
 		return true;
+    } else if (strcmp("cm", cmd) == 0) {
+		v_clear(&state->visual.fore.message_layer_zero.children);
+		v_clear(&state->visual.fore.message_layer_one.children);
+		v_clear(&state->visual.back.message_layer_zero.children);
+		v_clear(&state->visual.back.message_layer_one.children);
     }
 
     // Ported macros
@@ -522,9 +513,32 @@ bool run_command(CommandNode* command, FataState* state) {
         assert(name);
     } else if (strcmp("c", cmd) == 0) {
         char* text = get_arg_str(args, "text");
+		printf("Center: '%s'\n", text);
+		int width = MeasureText(text, 12);
+
+
         assert(text);
-        draw_text(text);
-    }
+        draw_text(state, text);
+    } else {
+		for (int i=0; i<state->macros.length; i++) {
+			Macro* macro = v_get(&state->macros, i);
+			if (strcmp(macro->name, cmd) != 0) continue;
+
+			printf("Need to execute macro '%s':\n", macro->name);
+
+			for (int j=0; j<macro->children.length; j++) {
+				printf(" - ");
+				BaseNode* child = v_get(&macro->children, j);
+				print_node(child, "exec-macro");
+			}
+
+			push_to_callstack(state);
+			state->target_nodes = &macro->children;
+			state->node_idx = 0;
+			//load(state, macro->location.script_path, NULL);
+			return true;
+		}
+	}
 
     return false;
 }
@@ -610,7 +624,7 @@ void frame_work(FataState* state, double delta_ms) {
             if (showstopper) return;
 		} else if (node->type == NODE_TEXT) {
             TextNode* text_node = (TextNode*)node;
-            // TODO
+			draw_text(state, text_node->text);
         }
     }
 
@@ -660,8 +674,14 @@ void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
                 load(state, NULL, button->target);
             }
         } else if (obj->type == VO_TEXT) {
-            TextObject* button = (Button*)obj;
-
+            TextObject* text_obj = (TextObject*)obj;
+			DrawText(
+				text_obj->text,
+				text_obj->position.x,
+				text_obj->position.y,
+				12,
+				WHITE
+			);
         } else {
             assert(false);
         }
@@ -703,11 +723,9 @@ int main() {
 
     load(&state, "cache/scenario/first.ks", NULL);
 
-    // Raylib stuff...
+    SetTraceLogLevel(LOG_WARNING);
     InitWindow(800, 600, "The House in Fata Morgana");
     SetTargetFPS(60);
-
-    SetTraceLogLevel(LOG_WARNING);
 
     RenderTexture2D fore_target = LoadRenderTexture(800, 600);
     RenderTexture2D back_target = LoadRenderTexture(800, 600);
@@ -742,6 +760,7 @@ int main() {
         frame_work(&state, delta_ms);
 
         BeginTextureMode(fore_target);
+			ClearBackground(BLANK);
             draw_page(&state, &state.visual.fore, mouse_pos);
         EndTextureMode();
 
@@ -755,6 +774,7 @@ int main() {
 
         if (fore_to_back_fade > 0.0f) {
             BeginTextureMode(back_target);
+				ClearBackground(BLANK);
                 draw_page(&state, &state.visual.back, mouse_pos);
             EndTextureMode();
         }
