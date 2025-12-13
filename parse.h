@@ -13,6 +13,11 @@ typedef struct {
 	NodeType type;
 } BaseNode;
 
+typedef struct {
+	char* condition;
+	Vector children;
+} IfClause;
+
 typedef enum {
 	CMD_DATA_NONE,
 	CMD_DATA_IF,

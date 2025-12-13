@@ -196,16 +196,51 @@ void process_command(CommandNode* command, char** src) {
             if (out_we_go) break;
         }
     } else if (strcmp(cmd, "if") == 0) {
+		command->data_type = CMD_DATA_IF;
+
+		Vector* clauses = malloc(sizeof(Vector));
+		*clauses = v_new();
+
         // TODO
+		IfClause* clause = malloc(sizeof(IfClause));
+		clause->condition = get_arg_str(&command->args, "exp");
+		assert(clause->condition);
+		clause->children = v_new();
+
         while (**src) {
             BaseNode* node = parse_one(src);
             if (!node) continue;
-            if (node->type != NODE_COMMAND) continue;
-            CommandNode* cmd_node = (CommandNode*)node;
 
+            if (node->type != NODE_COMMAND) {
+				v_append(&clause->children, node);
+				continue;
+			}
+
+            CommandNode* cmd_node = (CommandNode*)node;
             char* n_cmd = ((CommandArg*)v_get(&cmd_node->args, 0))->key;
-            if (strcmp(n_cmd, "endif") == 0) break;
+			
+            if (
+				strcmp(n_cmd, "elsif") == 0 ||
+				strcmp(n_cmd, "else") == 0
+			) {
+				v_append(clauses, clause);
+
+				clause = malloc(sizeof(IfClause));
+				clause->condition = get_arg_str(&command->args, "exp");
+				clause->children = v_new();
+				continue;
+			}
+
+
+            if (strcmp(n_cmd, "endif") == 0) {
+				v_append(clauses, clause);
+				break;
+			}
+
+			v_append(&clause->children, node);
         }
+
+		command->data = clauses;
     } else if (strcmp(cmd, "macro") == 0) {
 		Vector* nodes = malloc(sizeof(Vector));
 		*nodes = v_new();

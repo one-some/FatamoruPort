@@ -370,9 +370,24 @@ void* create_text(FataState* state, char* text) {
 	text_object->font = state->visual.active_layer->font;
 	text_object->position = state->visual.active_layer->pointer_pos;
 
+	Vector2 size = MeasureTextEx(
+		text_object->font.resource,
+		text,
+		(float)text_object->font.size,
+		0.0f
+	);
+
+	state->visual.active_layer->pointer_pos.x += size.x;
+
 	printf("Making text on %s\n", state->visual.active_layer->name);
 
 	v_append(&state->visual.active_layer->children, text_object);
+}
+
+bool evaluate_expression(FataState* state, char* expression) {
+	// YOLO
+	printf("Evaluate: '%s'\n", expression);
+	return true;
 }
 
 bool run_command(CommandNode* command, FataState* state) {
@@ -654,7 +669,54 @@ bool run_command(CommandNode* command, FataState* state) {
 			layer->texture_valid = true;
 			UnloadImage(img);
 		}
+    } else if (strcmp("title", cmd) == 0) {
+        char* name = get_arg_str(args, "name");
+		assert(name);
+		SetWindowTitle(name);
+    } else if (strcmp("r", cmd) == 0) {
+		VisualLayer* layer = state->visual.active_layer;
+		layer->pointer_pos.x = layer->margins.left;
+
+		// TODO: Spacing...
+		layer->pointer_pos.y += layer->font.size;
+	} else if (strcmp("if", cmd) == 0) {
+		assert(command->data_type == CMD_DATA_IF);
+		Vector* clauses = (Vector*)command->data;
+		
+		printf("Running if statement...\n");
+
+		IfClause* target_clause = NULL;
+		for (int i=0; i<clauses->length; i++) {
+			IfClause* clause = v_get(clauses, i);
+
+			// If there is no condition, this is an else block. Run it
+			if (
+				clause->condition &&
+				!evaluate_expression(state, clause->condition)
+			) {
+				continue;
+			}
+
+			target_clause = clause;
+			break;
+		}
+		assert(target_clause);
+
+		for (int j=0; j<target_clause->children.length; j++) {
+			printf(" - ");
+			BaseNode* child = v_get(&target_clause->children, j);
+			print_node(child, "exec-if");
+		}
+
+		push_to_callstack(state);
+		state->target_nodes = &target_clause->children;
+		state->node_idx = 0;
+		return true;
 	}
+
+
+
+
 
     // Ported macros
     if (strcmp("ctrlSpeakingPerson", cmd) == 0) {
@@ -689,14 +751,14 @@ bool run_command(CommandNode* command, FataState* state) {
 
 		FontConfig* font = &state->visual.active_layer->font;
 
-		Vector2 width = MeasureTextEx(
+		Vector2 size = MeasureTextEx(
 			font->resource,
 			text,
 			(float)font->size,
 			0.0f
 		);
 
-		int pos = (state->window_size.x - width.x) / 2;
+		int pos = (state->window_size.x - size.x) / 2;
 		state->visual.active_layer->pointer_pos.x = pos;
 
         assert(text);
@@ -717,7 +779,6 @@ bool run_command(CommandNode* command, FataState* state) {
 			push_to_callstack(state);
 			state->target_nodes = &macro->children;
 			state->node_idx = 0;
-			//load(state, macro->location.script_path, NULL);
 			return true;
 		}
 	}
@@ -823,7 +884,15 @@ void frame_work(FataState* state, double delta_ms) {
         }
     }
 
-    printf("[exec] Done?\n");
+	// We are out of nodes in the current execution context. See if we can pop.
+	if (state->call_stack.length) {
+		return_from_callstack(state);
+		return;
+	}
+
+	// Okay now it's a problem
+    printf("[exec] Done????\n");
+	exit(0);
 }
 
 void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
@@ -922,6 +991,7 @@ int main() {
     load(&state, "bootstrap.ks", NULL);
 
     SetTraceLogLevel(LOG_WARNING);
+	SetConfigFlags(FLAG_MSAA_4X_HINT);
     InitWindow(
 		state.window_size.x,
 		state.window_size.y,
