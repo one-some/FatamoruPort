@@ -9,6 +9,9 @@
 #include "vector.h"
 #include "parse.h"
 
+static Font Font_DroidSerif;
+static Font Font_LibreBaskerville;
+
 const char* useful_scripts[] = {
 	"macro.ks",
 	"macros_sprites.ks",
@@ -36,6 +39,12 @@ typedef struct {
 } VisualObject;
 
 typedef struct {
+	Font resource;
+	int size;
+	Color color;
+} FontConfig;
+
+typedef struct {
     VisualObject base;
 
 	Vec2 position;
@@ -48,7 +57,15 @@ typedef struct {
 
 	Vec2 position;
     char* text;
+	FontConfig font;
 } TextObject;
+
+typedef struct {
+	int left;
+	int top;
+	int right;
+	int bottom;
+} Margins;
 
 typedef struct {
     Texture2D texture;
@@ -57,6 +74,11 @@ typedef struct {
 
 	char* name;
 	Vector children;
+
+	// Wasteful! Only used on message layers
+	FontConfig font;
+	Margins margins;
+	Vec2 pointer_pos;
 } VisualLayer;
 
 typedef struct {
@@ -73,9 +95,9 @@ typedef struct {
 typedef struct {
 	VisualPage fore;
 	VisualPage back;
-
 	VisualLayer* active_layer;
-	Vec2 pointer_pos;
+
+	FontConfig default_font;
 } VisualScene;
 
 typedef struct {
@@ -113,10 +135,30 @@ typedef struct {
     Vector macros;
 
     char* speaker;
+	Vec2 window_size;
 } FataState;
 
 void breakpoint(FataState* state) {
     state->stopped_until_click = true;
+}
+
+void copy_layer(VisualLayer* dest, VisualLayer* src) {
+	// Blehhhh....... :/
+
+	Margins margin_keep = dest->margins;
+
+	*dest = *src;
+
+	dest->margins = margin_keep;
+}
+
+void copy_page(VisualPage* dest, VisualPage* src) {
+	copy_layer(&dest->base_layer, &src->base_layer);
+    copy_layer(&dest->layer_zero, &src->layer_zero);
+    copy_layer(&dest->layer_one, &src->layer_one);
+    copy_layer(&dest->layer_two, &src->layer_two);
+    copy_layer(&dest->message_layer_zero, &src->message_layer_zero);
+    copy_layer(&dest->message_layer_one, &src->message_layer_one);
 }
 
 void load(FataState* state, char* path, char* label_target) {
@@ -293,11 +335,42 @@ char* find_script(char* storage) {
 	return find_file(storage, patterns);
 }
 
-void* draw_text(FataState* state, char* text) {
+VisualLayer* get_layer(FataState* state, char* layer_name, char* page_name) {
+	assert(layer_name);
+
+	// HACK: OKAY SO LETS JUST LIE THEN I GUESS...
+	if (!page_name) page_name = "fore";
+	assert(page_name);
+
+	VisualPage* page = NULL;
+	if (strcmp("fore", page_name) == 0) {
+		page = &state->visual.fore;
+	} else if (strcmp("back", page_name) == 0) {
+		page = &state->visual.back;
+	}
+	assert(page);
+
+    VisualLayer* layers[] = {
+        &page->base_layer, &page->layer_zero, &page->layer_one, 
+        &page->layer_two, &page->message_layer_zero, &page->message_layer_one, NULL
+    };
+
+	for (int i=0; layers[i]; i++) {
+		if (strcmp(layers[i]->name, layer_name) != 0) continue;
+		return layers[i];
+	}
+
+	assert(false);
+}
+
+void* create_text(FataState* state, char* text) {
 	TextObject* text_object = malloc(sizeof(TextObject));
 	text_object->base = (VisualObject) { .type = VO_TEXT };
 	text_object->text = text;
-	text_object->position = state->visual.pointer_pos;
+	text_object->font = state->visual.active_layer->font;
+	text_object->position = state->visual.active_layer->pointer_pos;
+
+	printf("Making text on %s\n", state->visual.active_layer->name);
 
 	v_append(&state->visual.active_layer->children, text_object);
 }
@@ -420,11 +493,20 @@ bool run_command(CommandNode* command, FataState* state) {
         state->stopped = true;
         return true;
     } else if (strcmp("locate", cmd) == 0) {
+		// Hey Claire, if you're debugging this because things are offset,
+		// take a look at system/Config.tjs again. Remember the margins!
+		// XXOXOO, Claire
+		VisualLayer* layer = state->visual.active_layer;
+
         int x = get_arg_int(args, "x");
-        if (x != NO_ARG_INT) state->visual.pointer_pos.x = x;
+        if (x != NO_ARG_INT) {
+			layer->pointer_pos.x = x + layer->margins.left;
+		}
 
         int y = get_arg_int(args, "y");
-        if (y != NO_ARG_INT) state->visual.pointer_pos.y = y;
+        if (y != NO_ARG_INT) {
+			layer->pointer_pos.y = y + layer->margins.top;
+		}
     } else if (strcmp("current", cmd) == 0) {
 		char* layer = get_arg_str(args, "layer");
 		assert(layer);
@@ -452,7 +534,7 @@ bool run_command(CommandNode* command, FataState* state) {
 		ButtonObject* button = malloc(sizeof(ButtonObject));
         button->base = (VisualObject) { .type = VO_BUTTON };
 		button->target = target;
-		button->position = state->visual.pointer_pos;
+		button->position = state->visual.active_layer->pointer_pos;
 
         button->textures = read_button_textures(path);
 
@@ -497,11 +579,82 @@ bool run_command(CommandNode* command, FataState* state) {
         return_from_callstack(state);
 		return true;
     } else if (strcmp("cm", cmd) == 0) {
-		v_clear(&state->visual.fore.message_layer_zero.children);
-		v_clear(&state->visual.fore.message_layer_one.children);
-		v_clear(&state->visual.back.message_layer_zero.children);
-		v_clear(&state->visual.back.message_layer_one.children);
-    }
+		VisualLayer* layers[] = {
+			&state->visual.fore.message_layer_zero,
+			&state->visual.fore.message_layer_one,
+			&state->visual.back.message_layer_zero,
+			&state->visual.back.message_layer_one,
+			NULL
+		};
+
+		for (int i=0; layers[i]; i++) {
+			VisualLayer* layer = layers[i];
+			v_clear(&layer->children);
+
+			layer->pointer_pos.x = layer->margins.left;
+			layer->pointer_pos.y = layer->margins.top;
+
+			printf("Resetting to (%d, %d)\n", layer->margins.left, layer->margins.top);
+		}
+    } else if (strcmp("font", cmd) == 0) {
+		FontConfig* font = &state->visual.active_layer->font;
+
+		char* size_str = get_arg_str(args, "size");
+		if (size_str) {
+			if (size_str[0] >= '0' && size_str[0] <= '9') {
+				font->size = (int)strtol(size_str, NULL, 10);
+			}
+
+			exit(0);
+			// TODO: 'default'
+		}
+
+		char* color = get_arg_str(args, "color");
+		if (color) {
+			printf("Color: '%s'\n", color);
+			assert(color[0] == '0');
+			assert(color[1] == 'x');
+			long rgb = strtol(color + 2, NULL, 16);
+
+			font->color.r = ((rgb & 0xFF0000) >> 16);
+			font->color.g = ((rgb & 0x00FF00) >> 8);
+			font->color.b = ((rgb & 0x0000FF));
+		}
+	} else if (strcmp("backlay", cmd) == 0) {
+		copy_page(&state->visual.back, &state->visual.fore);
+	} else if (strcmp("position", cmd) == 0) {
+		VisualLayer* layer = get_layer(
+			state,
+			get_arg_str(args, "layer"),
+			get_arg_str(args, "page")
+		);
+
+		// TODO: Default to active_layer?
+		assert(layer);
+
+        int margin_l = get_arg_int(args, "marginl");
+        if (margin_l != NO_ARG_INT) layer->margins.left = margin_l;
+
+        int margin_t = get_arg_int(args, "margint");
+        if (margin_t != NO_ARG_INT) layer->margins.top = margin_t;
+
+        int margin_r = get_arg_int(args, "marginr");
+        if (margin_r != NO_ARG_INT) layer->margins.right = margin_r;
+
+        int margin_b = get_arg_int(args, "marginb");
+        if (margin_b != NO_ARG_INT) layer->margins.bottom = margin_b;
+
+		char* frame_storage = get_arg_str(args, "frame");
+		if (frame_storage) {
+			char* path = find_image(frame_storage);
+			assert(path);
+
+			Image img = LoadImage(path);
+			layer->texture = LoadTextureFromImage(img);
+			layer->texture_valid = true;
+			UnloadImage(img);
+		}
+	}
 
     // Ported macros
     if (strcmp("ctrlSpeakingPerson", cmd) == 0) {
@@ -511,14 +664,43 @@ bool run_command(CommandNode* command, FataState* state) {
     } else if (strcmp("draw_name", cmd) == 0) {
         char* name = get_arg_str(args, "name");
         assert(name);
+
+		// scenario/macro.ks
+		VisualLayer* layer = state->visual.active_layer;
+		layer->pointer_pos.x = 75 + layer->margins.left;
+		layer->pointer_pos.y = 1 + layer->margins.top;
+
+		layer->font.resource = Font_DroidSerif;
+		layer->font.size = 16;
+
+        char* name_buf = malloc(strlen(name) + 4);
+        snprintf(name_buf, sizeof(name_buf), "- %s -", name);
+
+		create_text(state, name_buf);
+
+		layer->font = state->visual.default_font;
+
+		layer->pointer_pos.x = 0 + layer->margins.left;
+		layer->pointer_pos.y = 42 + layer->margins.top;
+
     } else if (strcmp("c", cmd) == 0) {
         char* text = get_arg_str(args, "text");
 		printf("Center: '%s'\n", text);
-		int width = MeasureText(text, 12);
 
+		FontConfig* font = &state->visual.active_layer->font;
+
+		Vector2 width = MeasureTextEx(
+			font->resource,
+			text,
+			(float)font->size,
+			0.0f
+		);
+
+		int pos = (state->window_size.x - width.x) / 2;
+		state->visual.active_layer->pointer_pos.x = pos;
 
         assert(text);
-        draw_text(state, text);
+        create_text(state, text);
     } else {
 		for (int i=0; i<state->macros.length; i++) {
 			Macro* macro = v_get(&state->macros, i);
@@ -550,6 +732,9 @@ double get_time_ms() {
 }
 
 void unload_page_textures(VisualPage* page) {
+	// TODO: FIXME!!~!
+	return;
+
     VisualLayer* layers[] = {
         &page->base_layer, &page->layer_zero, &page->layer_one, 
         &page->layer_two, &page->message_layer_zero, &page->message_layer_one
@@ -563,26 +748,36 @@ void unload_page_textures(VisualPage* page) {
     }
 }
 
-void init_layer(VisualLayer* layer, char* name) {
+void init_layer(FataState* state, VisualLayer* layer, char* name) {
 	layer->texture_valid = false;
 	layer->texture_offset = (Vec2) { 0, 0 };
 	layer->name = name;
 	layer->children = v_new();
+	layer->pointer_pos = (Vec2) { 0, 0 };
+
+	layer->font = state->visual.default_font;
+	layer->margins = (Margins) {
+		.left = 70,
+		.top = 0,
+		.right = 70,
+		.bottom = 20
+	};
 }
 
-void init_page(VisualPage* page) {
-	init_layer(&page->base_layer, "base");
-	init_layer(&page->layer_zero, "0");
-	init_layer(&page->layer_one, "1");
-	init_layer(&page->layer_two, "2");
-	init_layer(&page->message_layer_zero, "message0");
-	init_layer(&page->message_layer_one, "message1");
+void init_page(FataState* state, VisualPage* page) {
+	init_layer(state, &page->base_layer, "base");
+	init_layer(state, &page->layer_zero, "0");
+	init_layer(state, &page->layer_one, "1");
+	init_layer(state, &page->layer_two, "2");
+	init_layer(state, &page->message_layer_zero, "message0");
+	init_layer(state, &page->message_layer_one, "message1");
 }
 
 void stop_transition(FataState* state) {
 	unload_page_textures(&state->visual.fore);
-	state->visual.fore = state->visual.back;
-	init_page(&state->visual.back);
+
+	copy_page(&state->visual.fore, &state->visual.back);
+	init_page(state, &state->visual.back);
 	
 	state->visual.fore.name = "fore";
     state->visual.back.name = "back";
@@ -624,7 +819,7 @@ void frame_work(FataState* state, double delta_ms) {
             if (showstopper) return;
 		} else if (node->type == NODE_TEXT) {
             TextNode* text_node = (TextNode*)node;
-			draw_text(state, text_node->text);
+			create_text(state, text_node->text);
         }
     }
 
@@ -675,12 +870,15 @@ void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
             }
         } else if (obj->type == VO_TEXT) {
             TextObject* text_obj = (TextObject*)obj;
-			DrawText(
+			FontConfig* font = &state->visual.active_layer->font;
+
+			DrawTextEx(
+				text_obj->font.resource,
 				text_obj->text,
-				text_obj->position.x,
-				text_obj->position.y,
-				12,
-				WHITE
+				(Vector2) { text_obj->position.x, text_obj->position.y },
+				(float)font->size,
+				0.0f,
+				font->color
 			);
         } else {
             assert(false);
@@ -704,12 +902,11 @@ int main() {
     FataState state;
 
 	state.visual.active_layer = &state.visual.fore.message_layer_zero;
-	state.visual.pointer_pos = (Vec2) { 0, 0 };
 
 	state.visual.fore.name = "fore";
 	state.visual.back.name = "back";
-	init_page(&state.visual.fore);
-	init_page(&state.visual.back);
+	init_page(&state, &state.visual.fore);
+	init_page(&state, &state.visual.back);
 
 	state.script_path = NULL;
     state.wait_timer_ms = 0.0f;
@@ -720,12 +917,30 @@ int main() {
 	state.can_skip_wait = false;
 	state.call_stack = v_new();
     state.macros = v_new();
+	state.window_size = (Vec2) { 800, 600 };
 
-    load(&state, "cache/scenario/first.ks", NULL);
+    load(&state, "bootstrap.ks", NULL);
 
     SetTraceLogLevel(LOG_WARNING);
-    InitWindow(800, 600, "The House in Fata Morgana");
+    InitWindow(
+		state.window_size.x,
+		state.window_size.y,
+		"The House in Fata Morgana"
+	);
     SetTargetFPS(60);
+
+	Font_DroidSerif = LoadFont("./DroidSerif.ttf");
+	Font_LibreBaskerville = LoadFont("./LibreBaskerville.ttf");
+
+	// See system/Config.tjs
+	state.visual.default_font.resource = Font_LibreBaskerville;
+	state.visual.default_font.size = 18;
+	// state.visual.default_font.spacing = 8;
+	// state.visual.default_font.shadow_color = GetColor(0x2b2b2b);
+	// state.visual.default_font.shadow_enabled = true
+	// TODO: Edge
+	state.visual.default_font.color = WHITE;
+
 
     RenderTexture2D fore_target = LoadRenderTexture(800, 600);
     RenderTexture2D back_target = LoadRenderTexture(800, 600);
@@ -782,7 +997,7 @@ int main() {
         BeginDrawing();
 
             ClearBackground(MAGENTA);
-            DrawText("FatamoruPORT! By Claire :3", 0, 0, 20, BLACK);
+            DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
 
             if (fore_to_back_fade > 0.0f) {
                 DrawTextureRec(
