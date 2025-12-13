@@ -17,6 +17,8 @@ bool is_whitespace(char c) {
 }
 
 char* load_src(const char* path) {
+    printf("[ld] '%s'\n", path);
+
 	FILE* f = fopen(path, "rb");
 	assert(f);
 

@@ -610,7 +610,8 @@ bool run_command(CommandNode* command, FataState* state) {
 
         char* enter_se_storage = get_arg_str(args, "enterse");
         if (enter_se_storage) {
-            button->enter_se = load_track(find_bgm(enter_se_storage));
+			printf("TODO\n");
+            // button->enter_se = load_track(find_bgm(enter_se_storage));
         }
 
         button->textures = read_button_textures(path);
@@ -802,8 +803,9 @@ bool run_command(CommandNode* command, FataState* state) {
 		layer->font.resource = Font_DroidSerif;
 		layer->font.size = 16;
 
-        char* name_buf = malloc(strlen(name) + 4);
-        snprintf(name_buf, sizeof(name_buf), "- %s -", name);
+        size_t str_size = strlen(name) + 5;
+        char* name_buf = malloc(str_size);
+        snprintf(name_buf, str_size, "- %s -", name);
 
 		create_text(state, name_buf);
 
@@ -814,7 +816,6 @@ bool run_command(CommandNode* command, FataState* state) {
 
     } else if (strcmp("c", cmd) == 0) {
         char* text = get_arg_str(args, "text");
-		printf("Center: '%s'\n", text);
 
 		FontConfig* font = &state->visual.active_layer->font;
 
@@ -1058,7 +1059,7 @@ int main() {
     state.macros = v_new();
 	state.window_size = (Vec2) { 800, 600 };
 
-    load(&state, "bootstrap.ks", NULL);
+    load(&state, "./static/bootstrap.ks", NULL);
 
     SetTraceLogLevel(LOG_WARNING);
 	SetConfigFlags(FLAG_MSAA_4X_HINT);
@@ -1072,9 +1073,9 @@ int main() {
     
     InitAudioDevice();
 
-	Font_DroidSerif = LoadFont("./DroidSerif.ttf");
+	Font_DroidSerif = LoadFont("./static/DroidSerif.ttf");
     SetTextureFilter(Font_DroidSerif.texture, TEXTURE_FILTER_BILINEAR);
-	Font_LibreBaskerville = LoadFont("./LibreBaskerville.ttf");
+	Font_LibreBaskerville = LoadFont("./static/LibreBaskerville.ttf");
     SetTextureFilter(Font_LibreBaskerville.texture, TEXTURE_FILTER_BILINEAR);
 
 	// See system/Config.tjs
