@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <sys/time.h>
 
+#include "rlgl.h"
 #include "raylib.h"
 #include "vector.h"
 #include "parse.h"
@@ -17,6 +18,15 @@ const char* useful_scripts[] = {
 	"macros_sprites.ks",
 	NULL
 };
+
+typedef struct {
+    bool valid;
+    Sound resource;
+} AudioTrack;
+
+typedef struct {
+    AudioTrack bgm;
+} AudioManager;
 
 typedef struct {
 	int x;
@@ -41,6 +51,7 @@ typedef struct {
 typedef struct {
 	Font resource;
 	int size;
+    int spacing;
 	Color color;
 } FontConfig;
 
@@ -50,6 +61,8 @@ typedef struct {
 	Vec2 position;
 	char* target;
 	ButtonTextureCollection textures;
+
+    AudioTrack enter_se;
 } ButtonObject;
 
 typedef struct {
@@ -98,7 +111,7 @@ typedef struct {
 	VisualLayer* active_layer;
 
 	FontConfig default_font;
-} VisualScene;
+} VisualManager;
 
 typedef struct {
 	char* script_path;
@@ -119,7 +132,9 @@ typedef struct {
     double last_time_ms;
     float wait_timer_ms;
     int node_idx;
-    VisualScene visual;
+
+    AudioManager audio;
+    VisualManager visual;
 
 	bool can_skip_wait;
 	bool can_skip_transition;
@@ -312,6 +327,14 @@ char* find_file(char* storage, const char* patterns[]) {
     assert(false);
 }
 
+char* find_bgm(char* storage) {
+	const char* patterns[] = {
+		"./cache/bgm/%s.ogg",
+		NULL
+	};
+	return find_file(storage, patterns);
+}
+
 char* find_image(char* storage) {
 	const char* patterns[] = {
 		"./cache/bgimage/%s.png",
@@ -333,6 +356,18 @@ char* find_script(char* storage) {
 		NULL
 	};
 	return find_file(storage, patterns);
+}
+
+AudioTrack load_track(char* path) {
+    return (AudioTrack) {
+        .valid = true,
+        .resource = LoadSound(path)
+    };
+}
+
+void* play_one_off_se(char* path) {
+    // GOD THIS IS BAD!
+    PlaySound(load_track(path).resource);
 }
 
 VisualLayer* get_layer(FataState* state, char* layer_name, char* page_name) {
@@ -374,7 +409,7 @@ void* create_text(FataState* state, char* text) {
 		text_object->font.resource,
 		text,
 		(float)text_object->font.size,
-		0.0f
+		(float)text_object->font.spacing
 	);
 
 	state->visual.active_layer->pointer_pos.x += size.x;
@@ -488,6 +523,21 @@ bool run_command(CommandNode* command, FataState* state) {
 
         load(state, path, target);
         return true;
+    } else if (strcmp("playbgm", cmd) == 0) {
+        char* storage = get_arg_str(args, "storage");
+        assert(storage);
+
+        char* path = find_bgm(storage);
+        assert(path);
+
+        if (state->audio.bgm.valid) {
+            StopSound(state->audio.bgm.resource);
+            UnloadSound(state->audio.bgm.resource);
+        }
+
+        state->audio.bgm.valid = true;
+        state->audio.bgm.resource = LoadSound(path);
+        PlaySound(state->audio.bgm.resource);
     } else if (strcmp("trans", cmd) == 0) {
         char* method = get_arg_str(args, "method");
         assert(method);
@@ -554,6 +604,14 @@ bool run_command(CommandNode* command, FataState* state) {
         button->base = (VisualObject) { .type = VO_BUTTON };
 		button->target = target;
 		button->position = state->visual.active_layer->pointer_pos;
+
+        // Blehhh!!
+        button->enter_se.valid = false;
+
+        char* enter_se_storage = get_arg_str(args, "enterse");
+        if (enter_se_storage) {
+            button->enter_se = load_track(find_bgm(enter_se_storage));
+        }
 
         button->textures = read_button_textures(path);
 
@@ -764,7 +822,7 @@ bool run_command(CommandNode* command, FataState* state) {
 			font->resource,
 			text,
 			(float)font->size,
-			0.0f
+            0.0f
 		);
 
 		int pos = (state->window_size.x - size.x) / 2;
@@ -941,7 +999,7 @@ void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
                 WHITE
             );
 
-            DrawRectangleLinesEx(rect, 1.0f, RED);
+            // DrawRectangleLinesEx(rect, 1.0f, RED);
 
             if (mouse_inside && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 load(state, NULL, button->target);
@@ -955,7 +1013,7 @@ void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
 				text_obj->text,
 				(Vector2) { text_obj->position.x, text_obj->position.y },
 				(float)font->size,
-				0.0f,
+                0.0f,
 				font->color
 			);
         } else {
@@ -966,10 +1024,12 @@ void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
 
 void draw_page(FataState* state, VisualPage* page, Vector2 mouse_pos) {
 	//printf("Drawing Page: '%s'\n", page->name);
+    
     draw_layer(state, &page->base_layer, mouse_pos);
     draw_layer(state, &page->layer_zero, mouse_pos);
     draw_layer(state, &page->layer_one, mouse_pos);
     draw_layer(state, &page->layer_two, mouse_pos);
+
     draw_layer(state, &page->message_layer_zero, mouse_pos);
     draw_layer(state, &page->message_layer_one, mouse_pos);
 }
@@ -986,6 +1046,7 @@ int main() {
 	init_page(&state, &state.visual.fore);
 	init_page(&state, &state.visual.back);
 
+    state.audio.bgm.valid = false;
 	state.script_path = NULL;
     state.wait_timer_ms = 0.0f;
     state.last_time_ms = get_time_ms();
@@ -1001,20 +1062,25 @@ int main() {
 
     SetTraceLogLevel(LOG_WARNING);
 	SetConfigFlags(FLAG_MSAA_4X_HINT);
+
     InitWindow(
 		state.window_size.x,
 		state.window_size.y,
 		"The House in Fata Morgana"
 	);
     SetTargetFPS(60);
+    
+    InitAudioDevice();
 
 	Font_DroidSerif = LoadFont("./DroidSerif.ttf");
+    SetTextureFilter(Font_DroidSerif.texture, TEXTURE_FILTER_BILINEAR);
 	Font_LibreBaskerville = LoadFont("./LibreBaskerville.ttf");
+    SetTextureFilter(Font_LibreBaskerville.texture, TEXTURE_FILTER_BILINEAR);
 
 	// See system/Config.tjs
 	state.visual.default_font.resource = Font_LibreBaskerville;
 	state.visual.default_font.size = 18;
-	// state.visual.default_font.spacing = 8;
+	state.visual.default_font.spacing = 8;
 	// state.visual.default_font.shadow_color = GetColor(0x2b2b2b);
 	// state.visual.default_font.shadow_enabled = true
 	// TODO: Edge
@@ -1024,6 +1090,7 @@ int main() {
     RenderTexture2D fore_target = LoadRenderTexture(800, 600);
     RenderTexture2D back_target = LoadRenderTexture(800, 600);
 
+    rlSetBlendFactorsSeparate(RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA, RL_ONE, RL_ONE, RL_FUNC_ADD, RL_MAX);
     while (!WindowShouldClose()) {
         double now = get_time_ms();
         double delta_ms = now - state.last_time_ms;
@@ -1054,8 +1121,12 @@ int main() {
         frame_work(&state, delta_ms);
 
         BeginTextureMode(fore_target);
+            BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+
 			ClearBackground(BLANK);
             draw_page(&state, &state.visual.fore, mouse_pos);
+
+            EndBlendMode();
         EndTextureMode();
 
         // Transition if needed
@@ -1068,14 +1139,18 @@ int main() {
 
         if (fore_to_back_fade > 0.0f) {
             BeginTextureMode(back_target);
+                BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+
 				ClearBackground(BLANK);
                 draw_page(&state, &state.visual.back, mouse_pos);
+
+                EndBlendMode();
             EndTextureMode();
         }
 
         BeginDrawing();
 
-            ClearBackground(MAGENTA);
+            ClearBackground(GREEN);
             DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
 
             if (fore_to_back_fade > 0.0f) {
