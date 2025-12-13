@@ -96,7 +96,7 @@ CommandNode* command_from_line(char* line) {
         int buf_i = 0;
 
         while (*arg_str) {
-            if (*arg_str == '=') {
+            if (*arg_str == '=' && buf == arg->key) {
                 buf[buf_i] = '\0';
                 buf = arg->value;
                 buf_i = 0;
@@ -226,7 +226,7 @@ void process_command(CommandNode* command, char** src) {
 				v_append(clauses, clause);
 
 				clause = malloc(sizeof(IfClause));
-				clause->condition = get_arg_str(&command->args, "exp");
+				clause->condition = get_arg_str(&cmd_node->args, "exp");
 				clause->children = v_new();
 				continue;
 			}
@@ -265,7 +265,7 @@ void process_command(CommandNode* command, char** src) {
 }
 
 BaseNode* parse_one(char** src) {
-	while (**src && is_whitespace(**src)) {
+	while (**src && **src == '\t' || **src == '\n') {
         (*src)++;
 	}
 

@@ -385,9 +385,13 @@ void* create_text(FataState* state, char* text) {
 }
 
 bool evaluate_expression(FataState* state, char* expression) {
-	// YOLO
 	printf("Evaluate: '%s'\n", expression);
-	return true;
+
+	if (strcmp(expression, "sf.fataend==1") == 0) return false;
+	if (strcmp(expression, "sf.fataend!=1") == 0) return true;
+
+	// YOLO
+	return false;
 }
 
 bool run_command(CommandNode* command, FataState* state) {
@@ -689,18 +693,23 @@ bool run_command(CommandNode* command, FataState* state) {
 		for (int i=0; i<clauses->length; i++) {
 			IfClause* clause = v_get(clauses, i);
 
+			printf("Clause condition: '%s'\n", clause->condition);
+
 			// If there is no condition, this is an else block. Run it
 			if (
 				clause->condition &&
 				!evaluate_expression(state, clause->condition)
 			) {
+				printf("Noway\n");
 				continue;
 			}
+			printf("Setting\n");
 
 			target_clause = clause;
 			break;
 		}
-		assert(target_clause);
+		// assert(target_clause);
+		if (!target_clause) return false;
 
 		for (int j=0; j<target_clause->children.length; j++) {
 			printf(" - ");
