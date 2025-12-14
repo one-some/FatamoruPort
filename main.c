@@ -62,6 +62,7 @@ typedef struct {
 	char* target;
 	ButtonTextureCollection textures;
 
+    bool hovered;
     AudioTrack enter_se;
 } ButtonObject;
 
@@ -151,6 +152,7 @@ typedef struct {
 
     char* speaker;
 	Vec2 window_size;
+	Vec2 canvas_size;
 } FataState;
 
 void breakpoint(FataState* state) {
@@ -174,6 +176,11 @@ void copy_page(VisualPage* dest, VisualPage* src) {
     copy_layer(&dest->layer_two, &src->layer_two);
     copy_layer(&dest->message_layer_zero, &src->message_layer_zero);
     copy_layer(&dest->message_layer_one, &src->message_layer_one);
+}
+
+void play_sound(AudioTrack* track) {
+    if (!track->valid) return;
+    PlaySound(track->resource);
 }
 
 void load(FataState* state, char* path, char* label_target) {
@@ -328,10 +335,12 @@ char* find_file(char* storage, const char* patterns[]) {
 }
 
 char* find_bgm(char* storage) {
-	const char* patterns[] = {
-		"./cache/bgm/%s.ogg",
-		NULL
-	};
+	const char* patterns[] = { "./cache/bgm/%s.ogg", NULL };
+	return find_file(storage, patterns);
+}
+
+char* find_sfx(char* storage) {
+	const char* patterns[] = { "./cache/sound/%s.ogg", NULL };
 	return find_file(storage, patterns);
 }
 
@@ -363,11 +372,6 @@ AudioTrack load_track(char* path) {
         .valid = true,
         .resource = LoadSound(path)
     };
-}
-
-void* play_one_off_se(char* path) {
-    // GOD THIS IS BAD!
-    PlaySound(load_track(path).resource);
 }
 
 VisualLayer* get_layer(FataState* state, char* layer_name, char* page_name) {
@@ -409,7 +413,7 @@ void* create_text(FataState* state, char* text) {
 		text_object->font.resource,
 		text,
 		(float)text_object->font.size,
-		(float)text_object->font.spacing
+        0.0f
 	);
 
 	state->visual.active_layer->pointer_pos.x += size.x;
@@ -538,6 +542,15 @@ bool run_command(CommandNode* command, FataState* state) {
         state->audio.bgm.valid = true;
         state->audio.bgm.resource = LoadSound(path);
         PlaySound(state->audio.bgm.resource);
+    } else if (strcmp("playse", cmd) == 0) {
+        char* storage = get_arg_str(args, "storage");
+        assert(storage);
+
+        char* path = find_sfx(storage);
+        assert(path);
+
+        AudioTrack track = load_track(path);
+        play_sound(&track);
     } else if (strcmp("trans", cmd) == 0) {
         char* method = get_arg_str(args, "method");
         assert(method);
@@ -604,14 +617,14 @@ bool run_command(CommandNode* command, FataState* state) {
         button->base = (VisualObject) { .type = VO_BUTTON };
 		button->target = target;
 		button->position = state->visual.active_layer->pointer_pos;
+        button->hovered = false;
 
         // Blehhh!!
         button->enter_se.valid = false;
 
         char* enter_se_storage = get_arg_str(args, "enterse");
         if (enter_se_storage) {
-			printf("TODO\n");
-            // button->enter_se = load_track(find_bgm(enter_se_storage));
+            button->enter_se = load_track(find_sfx(enter_se_storage));
         }
 
         button->textures = read_button_textures(path);
@@ -741,7 +754,7 @@ bool run_command(CommandNode* command, FataState* state) {
 		layer->pointer_pos.x = layer->margins.left;
 
 		// TODO: Spacing...
-		layer->pointer_pos.y += layer->font.size;
+		layer->pointer_pos.y += layer->font.size + layer->font.spacing;
 	} else if (strcmp("if", cmd) == 0) {
 		assert(command->data_type == CMD_DATA_IF);
 		Vector* clauses = (Vector*)command->data;
@@ -795,21 +808,23 @@ bool run_command(CommandNode* command, FataState* state) {
         char* name = get_arg_str(args, "name");
         assert(name);
 
-		// scenario/macro.ks
-		VisualLayer* layer = state->visual.active_layer;
-		layer->pointer_pos.x = 75 + layer->margins.left;
-		layer->pointer_pos.y = 1 + layer->margins.top;
+        VisualLayer* layer = state->visual.active_layer;
+        if (*name != '\0') {
+            // scenario/macro.ks
+            layer->pointer_pos.x = 75 + layer->margins.left;
+            layer->pointer_pos.y = 1 + layer->margins.top;
 
-		layer->font.resource = Font_DroidSerif;
-		layer->font.size = 16;
+            layer->font.resource = Font_DroidSerif;
+            layer->font.size = 16;
 
-        size_t str_size = strlen(name) + 5;
-        char* name_buf = malloc(str_size);
-        snprintf(name_buf, str_size, "- %s -", name);
+            size_t str_size = strlen(name) + 5;
+            char* name_buf = malloc(str_size);
+            snprintf(name_buf, str_size, "- %s -", name);
 
-		create_text(state, name_buf);
+            create_text(state, name_buf);
 
-		layer->font = state->visual.default_font;
+            layer->font = state->visual.default_font;
+        }
 
 		layer->pointer_pos.x = 0 + layer->margins.left;
 		layer->pointer_pos.y = 42 + layer->margins.top;
@@ -826,7 +841,7 @@ bool run_command(CommandNode* command, FataState* state) {
             0.0f
 		);
 
-		int pos = (state->window_size.x - size.x) / 2;
+		int pos = (state->canvas_size.x - size.x) / 2;
 		state->visual.active_layer->pointer_pos.x = pos;
 
         assert(text);
@@ -993,6 +1008,12 @@ void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
 
             bool mouse_inside = CheckCollisionPointRec(mouse_pos, rect);
 
+            if (!button->hovered && mouse_inside) {
+                play_sound(&button->enter_se);
+            }
+
+            button->hovered = mouse_inside;
+
             DrawTexture(
                 mouse_inside ? button->textures.hover : button->textures.normal,
                 pos_x,
@@ -1057,12 +1078,13 @@ int main() {
 	state.can_skip_wait = false;
 	state.call_stack = v_new();
     state.macros = v_new();
+	state.canvas_size = (Vec2) { 800, 600 };
 	state.window_size = (Vec2) { 800, 600 };
 
     load(&state, "./static/bootstrap.ks", NULL);
 
     SetTraceLogLevel(LOG_WARNING);
-	SetConfigFlags(FLAG_MSAA_4X_HINT);
+	SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
 
     InitWindow(
 		state.window_size.x,
@@ -1089,7 +1111,9 @@ int main() {
 
 
     RenderTexture2D fore_target = LoadRenderTexture(800, 600);
+    SetTextureFilter(fore_target.texture, TEXTURE_FILTER_BILINEAR);
     RenderTexture2D back_target = LoadRenderTexture(800, 600);
+    SetTextureFilter(back_target.texture, TEXTURE_FILTER_BILINEAR);
 
     rlSetBlendFactorsSeparate(RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA, RL_ONE, RL_ONE, RL_FUNC_ADD, RL_MAX);
     while (!WindowShouldClose()) {
@@ -1117,7 +1141,18 @@ int main() {
 			}
 		}
 
+        state.window_size.x = GetRenderWidth();
+        state.window_size.y = GetRenderHeight();
+
+        Rectangle render_rect;
+        render_rect.height = (float)state.window_size.y;
+        render_rect.width = render_rect.height / (float)state.canvas_size.y * (float)state.canvas_size.x;
+        render_rect.x = (float)((state.window_size.x - render_rect.width) / 2);
+        render_rect.y = 0;
+
 		Vector2 mouse_pos = GetMousePosition();
+        mouse_pos.x = (mouse_pos.x + render_rect.x) / (float)state.window_size.x * state.canvas_size.x;
+        mouse_pos.y = mouse_pos.y / (float)state.window_size.y * state.canvas_size.y;
 
         frame_work(&state, delta_ms);
 
@@ -1149,25 +1184,31 @@ int main() {
             EndTextureMode();
         }
 
+        // (Rectangle) { 0.0f, 0.0f, (float)state.window_size.x, (float)state.window_size.y },
+
         BeginDrawing();
 
-            ClearBackground(GREEN);
-            DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
+            ClearBackground(BLACK);
+            //DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
 
             if (fore_to_back_fade > 0.0f) {
-                DrawTextureRec(
+                DrawTexturePro(
                     back_target.texture,
                     (Rectangle) { 0.0f, 0.0f, (float)back_target.texture.width, -(float)back_target.texture.height },
+                    render_rect,
                     (Vector2) { 0, 0 },
+                    0.0f,
                     WHITE
                 );
             }
 
             // We gotta do this whole song and dance because it's flipped
-            DrawTextureRec(
+            DrawTexturePro(
                 fore_target.texture,
                 (Rectangle) { 0.0f, 0.0f, (float)fore_target.texture.width, -(float)fore_target.texture.height },
+                render_rect,
                 (Vector2) { 0, 0 },
+                0.0f,
                 Fade(WHITE, 1.0f - fore_to_back_fade)
             );
 
