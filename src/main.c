@@ -3,15 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <sys/time.h>
 
-#include "rlgl.h"
-#include "raylib.h"
 #include "vector.h"
 #include "parse.h"
 #include "visual.h"
 #include "ui.h"
 #include "state.h"
+#include "rosetta.h"
 
 const char* useful_scripts[] = {
 	"macro.ks",
@@ -629,12 +627,6 @@ bool run_command(CommandNode* command, FataState* state) {
     return false;
 }
 
-double get_time_ms() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return ((tv.tv_sec) * 1000.0d) + (tv.tv_usec / 1000.0d);
-}
-
 void stop_transition(FataState* state) {
 	unload_page_textures(&state->visual.fore);
 
@@ -711,7 +703,7 @@ int main() {
     state.audio.bgm.valid = false;
 	state.script_path = NULL;
     state.wait_timer_ms = 0.0f;
-    state.last_time_ms = get_time_ms();
+    state.last_time_ms = r_time_ms();
     state.transition_remaining_ms = 0.0f;
     state.transition_max_ms = 0.0f;
 	state.can_skip_transition = false;
@@ -720,25 +712,6 @@ int main() {
     state.macros = v_new();
 	state.canvas_size = (Vec2) { 800, 600 };
 	state.window_size = (Vec2) { 800, 600 };
-
-    load(&state, "./static/bootstrap.ks", NULL);
-
-    SetTraceLogLevel(LOG_WARNING);
-	SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
-
-    InitWindow(
-		state.window_size.x,
-		state.window_size.y,
-		"The House in Fata Morgana"
-	);
-    SetTargetFPS(60);
-    
-    InitAudioDevice();
-
-	Font_DroidSerif = LoadFont("./static/DroidSerif.ttf");
-    SetTextureFilter(Font_DroidSerif.texture, TEXTURE_FILTER_BILINEAR);
-	Font_LibreBaskerville = LoadFont("./static/LibreBaskerville.ttf");
-    SetTextureFilter(Font_LibreBaskerville.texture, TEXTURE_FILTER_BILINEAR);
 
 	// See system/Config.tjs
 	state.visual.default_font.resource = Font_LibreBaskerville;
@@ -749,15 +722,23 @@ int main() {
 	// TODO: Edge
 	state.visual.default_font.color = WHITE;
 
+    load(&state, "./static/bootstrap.ks", NULL);
+
+    r_init(&state);
+
+	Font_DroidSerif = LoadFont("./static/DroidSerif.ttf");
+    SetTextureFilter(Font_DroidSerif.texture, TEXTURE_FILTER_BILINEAR);
+	Font_LibreBaskerville = LoadFont("./static/LibreBaskerville.ttf");
+    SetTextureFilter(Font_LibreBaskerville.texture, TEXTURE_FILTER_BILINEAR);
+
 
     RenderTexture2D fore_target = LoadRenderTexture(800, 600);
     SetTextureFilter(fore_target.texture, TEXTURE_FILTER_BILINEAR);
     RenderTexture2D back_target = LoadRenderTexture(800, 600);
     SetTextureFilter(back_target.texture, TEXTURE_FILTER_BILINEAR);
 
-    rlSetBlendFactorsSeparate(RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA, RL_ONE, RL_ONE, RL_FUNC_ADD, RL_MAX);
-    while (!WindowShouldClose()) {
-        double now = get_time_ms();
+    while (r_main_loop(&state)) {
+        double now = r_time_ms();
         double delta_ms = now - state.last_time_ms;
 
         // delta_ms *= 10.0;
@@ -780,9 +761,6 @@ int main() {
 				state.can_skip_wait = false;
 			}
 		}
-
-        state.window_size.x = GetRenderWidth();
-        state.window_size.y = GetRenderHeight();
 
         Rectangle render_rect;
         render_rect.height = (float)state.window_size.y;
@@ -826,9 +804,7 @@ int main() {
 
         // (Rectangle) { 0.0f, 0.0f, (float)state.window_size.x, (float)state.window_size.y },
 
-        BeginDrawing();
-
-            ClearBackground(BLACK);
+        r_begin_frame();
             //DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
 
             if (fore_to_back_fade > 0.0f) {
@@ -852,6 +828,6 @@ int main() {
                 Fade(WHITE, 1.0f - fore_to_back_fade)
             );
 
-        EndDrawing();
+        r_end_frame();
     }
 }
