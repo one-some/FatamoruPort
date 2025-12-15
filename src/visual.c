@@ -2,15 +2,16 @@
 #include <string.h>
 
 #include "visual.h"
+#include "types.h"
 #include "state.h"
 #include "ui.h"
 
 void init_layer(FataState* state, VisualLayer* layer, char* name) {
-	layer->texture_valid = false;
-	layer->texture_offset = (Vec2) { 0, 0 };
+	layer->texture.valid = false;
+	layer->texture_offset = (RVec2) { 0, 0 };
 	layer->name = name;
 	layer->children = v_new();
-	layer->pointer_pos = (Vec2) { 0, 0 };
+	layer->pointer_pos = (RVec2) { 0, 0 };
 
 	layer->font = state->visual.default_font;
 	layer->margins = (Margins) {
@@ -50,15 +51,10 @@ void copy_page(VisualPage* dest, VisualPage* src) {
     copy_layer(&dest->message_layer_one, &src->message_layer_one);
 }
 
-void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
-    if (layer->texture_valid) {
+void draw_layer(FataState* state, VisualLayer* layer) {
+    if (layer->texture.valid) {
 		//printf("Drawing a texture on '%s'\n", layer->name);
-		DrawTexture(
-			layer->texture,
-			layer->texture_offset.x,
-			layer->texture_offset.y,
-			WHITE
-		);
+		r_draw_texture(layer->texture, layer->texture_offset);
 	}
 
 	for (int i=0; i<layer->children.length;i++) {
@@ -68,47 +64,40 @@ void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
         if (obj->type == VO_BUTTON) {
             ButtonObject* button = (ButtonObject*)obj;
 
-            int pos_x = button->position.x;
-            int pos_y = button->position.y;
-
-            Rectangle rect = (Rectangle) {
-                pos_x,
-                pos_y,
-                button->textures.normal.width,
-                button->textures.normal.height
+            RRect rect = {
+                .x = button->position.x,
+                .y = button->position.y,
+                .width = button->texture.size.x,
+                .height = button->texture.size.y
             };
 
-            bool mouse_inside = CheckCollisionPointRec(mouse_pos, rect);
+			RVec2 mouse_pos = r_get_cursor_pos();
+            bool mouse_inside = rect_contains(rect, mouse_pos);
 
             if (!button->hovered && mouse_inside) {
                 play_sound(&button->enter_se);
             }
-
             button->hovered = mouse_inside;
 
-            DrawTexture(
-                mouse_inside ? button->textures.hover : button->textures.normal,
-                pos_x,
-                pos_y,
-                WHITE
-            );
+			// Normal, pressed, hovered
+			int offset_width = button->texture.size.x / 3;
+			int x_offset = mouse_inside ? offset_width * 2 : 0;
+
+            r_draw_texture(button->texture, button->position);
 
             // DrawRectangleLinesEx(rect, 1.0f, RED);
 
-            if (mouse_inside && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            if (mouse_inside && r_get_click()) {
                 load(state, NULL, button->target);
             }
         } else if (obj->type == VO_TEXT) {
             TextObject* text_obj = (TextObject*)obj;
-			FontConfig* font = &state->visual.active_layer->font;
+			RFont* font = &state->visual.active_layer->font;
 
-			DrawTextEx(
-				text_obj->font.resource,
+			r_draw_text(
+				text_obj->font,
 				text_obj->text,
-				(Vector2) { text_obj->position.x, text_obj->position.y },
-				(float)font->size,
-                0.0f,
-				font->color
+				text_obj->position
 			);
         } else {
             assert(false);
@@ -116,16 +105,16 @@ void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos) {
 	}
 }
 
-void draw_page(FataState* state, VisualPage* page, Vector2 mouse_pos) {
+void draw_page(FataState* state, VisualPage* page) {
 	//printf("Drawing Page: '%s'\n", page->name);
     
-    draw_layer(state, &page->base_layer, mouse_pos);
-    draw_layer(state, &page->layer_zero, mouse_pos);
-    draw_layer(state, &page->layer_one, mouse_pos);
-    draw_layer(state, &page->layer_two, mouse_pos);
+    draw_layer(state, &page->base_layer);
+    draw_layer(state, &page->layer_zero);
+    draw_layer(state, &page->layer_one);
+    draw_layer(state, &page->layer_two);
 
-    draw_layer(state, &page->message_layer_zero, mouse_pos);
-    draw_layer(state, &page->message_layer_one, mouse_pos);
+    draw_layer(state, &page->message_layer_zero);
+    draw_layer(state, &page->message_layer_one);
 }
 
 
@@ -139,9 +128,9 @@ void unload_page_textures(VisualPage* page) {
     };
 
     for (int i = 0; i < 6; i++) {
-        if (layers[i]->texture_valid) {
-            UnloadTexture(layers[i]->texture);
-            layers[i]->texture_valid = false;
+        if (layers[i]->texture.valid) {
+            r_unload_texture(layers[i]->texture);
+            layers[i]->texture.valid = false;
         }
     }
 }

@@ -29,8 +29,8 @@ typedef struct FataState {
     Vector macros;
 
     char* speaker;
-	Vec2 window_size;
-	Vec2 canvas_size;
+	RVec2 window_size;
+	RVec2 canvas_size;
 } FataState;
 
 void load(FataState* state, char* path, char* label_target);

@@ -1,5 +1,6 @@
-#include "rosetta.h"
+#ifdef PLATFORM_RAYLIB
 
+#include "rosetta.h"
 #include "raylib.h"
 #include "rlgl.h"
 #include "state.h"
@@ -45,3 +46,4 @@ double r_time_ms() {
     return ((tv.tv_sec) * 1000.0d) + (tv.tv_usec / 1000.0d);
 }
 
+#endif

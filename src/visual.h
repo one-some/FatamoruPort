@@ -1,15 +1,10 @@
 #pragma once
 
-#include "raylib.h"
+#include "rosetta.h"
 #include "vector.h"
 #include "audio.h"
 
 typedef struct FataState FataState;
-
-typedef struct {
-	int x;
-	int y;
-} Vec2;
 
 typedef struct {
 	int left;
@@ -19,24 +14,17 @@ typedef struct {
 } Margins;
 
 typedef struct {
-	Font resource;
-	int size;
-    int spacing;
-	Color color;
-} FontConfig;
-
-typedef struct {
-    Texture2D texture;
-	Vec2 texture_offset;
-    bool texture_valid;
+    RTexture texture;
+	RVec2 texture_offset;
 
 	char* name;
 	Vector children;
 
 	// Wasteful! Only used on message layers
-	FontConfig font;
+	RFont font;
+
 	Margins margins;
-	Vec2 pointer_pos;
+	RVec2 pointer_pos;
 } VisualLayer;
 
 typedef struct {
@@ -55,7 +43,7 @@ typedef struct {
 	VisualPage back;
 	VisualLayer* active_layer;
 
-	FontConfig default_font;
+	RFont default_font;
 } VisualManager;
 
 void init_layer(FataState* state, VisualLayer* layer, char* name);
@@ -64,8 +52,8 @@ void init_page(FataState* state, VisualPage* page);
 void copy_layer(VisualLayer* dest, VisualLayer* src);
 void copy_page(VisualPage* dest, VisualPage* src);
 
-void draw_layer(FataState* state, VisualLayer* layer, Vector2 mouse_pos);
-void draw_page(FataState* state, VisualPage* page, Vector2 mouse_pos);
+void draw_layer(FataState* state, VisualLayer* layer);
+void draw_page(FataState* state, VisualPage* page);
 
 void unload_page_textures(VisualPage* page);
 VisualLayer* get_layer(FataState* state, char* layer_name, char* page_name);
