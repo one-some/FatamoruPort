@@ -1,6 +1,6 @@
 // TODO: Arena allocater
+#include "mem.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 
@@ -84,7 +84,7 @@ void load(FataState* state, char* path, char* label_target) {
                     continue;
                 }
 
-                macro = malloc(sizeof(Macro));
+                macro = m_malloc(sizeof(Macro));
                 macro->name = name;
                 macro->children = *(Vector*)cmd->data;
 
@@ -111,7 +111,7 @@ void load(FataState* state, char* path, char* label_target) {
 }
 
 void push_to_callstack(FataState* state) {
-    ScriptLocation* where = malloc(sizeof(ScriptLocation));
+    ScriptLocation* where = m_malloc(sizeof(ScriptLocation));
     where->script_path = state->script_path;
     where->node_idx = state->node_idx;
     where->target_nodes = state->target_nodes;
@@ -371,7 +371,7 @@ bool run_command(CommandNode* command, FataState* state) {
             target++;
         }
 
-		ButtonObject* button = malloc(sizeof(ButtonObject));
+		ButtonObject* button = m_malloc(sizeof(ButtonObject));
         button->base = (UIObject) { .type = VO_BUTTON };
 		button->target = target;
 		button->position = state->visual.active_layer->pointer_pos;
@@ -576,7 +576,7 @@ bool run_command(CommandNode* command, FataState* state) {
             layer->font.size = 16;
 
             size_t str_size = strlen(name) + 5;
-            char* name_buf = malloc(str_size);
+            char* name_buf = m_malloc(str_size);
             snprintf(name_buf, str_size, "- %s -", name);
 
             create_text(state, name_buf);
