@@ -36,4 +36,4 @@ typedef struct {
 	RFont font;
 } TextObject;
 
-void* create_text(FataState* state, char* text);
+void create_text(FataState* state, char* text);

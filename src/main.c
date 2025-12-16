@@ -152,7 +152,9 @@ char* find_file(char* storage, const char* patterns[]) {
     for (int i=0; patterns[i]; i++) {
 		printf("- %s\n", patterns[i]);
 	}
+
     assert(false);
+	return NULL;
 }
 
 char* find_bgm(char* storage) {
@@ -695,14 +697,6 @@ int main() {
     //
 
     FataState state = {0};
-    r_init(&state);
-
-	state.visual.active_layer = &state.visual.fore.message_layer_zero;
-
-	state.visual.fore.name = "fore";
-	state.visual.back.name = "back";
-	init_page(&state, &state.visual.fore);
-	init_page(&state, &state.visual.back);
 
     state.audio.bgm.valid = false;
 	state.script_path = NULL;
@@ -717,12 +711,17 @@ int main() {
 	state.canvas_size = (RVec2) { 800, 600 };
 	state.window_size = (RVec2) { 800, 600 };
 
-    printf("\n\n\n\n\nB:%d\n", state.static_arena.base);
-    a_malloc(&state.static_arena, 1337);
-    //a_malloc(&state.static_arena, 1337);
-    //a_malloc(&state.static_arena, 1337);
-    //a_malloc(&state.static_arena, 1337);
-    printf("\nP:%d\n", state.static_arena.base);
+	state.visual.active_layer = &state.visual.fore.message_layer_zero;
+
+	state.visual.fore.name = "fore";
+	state.visual.back.name = "back";
+	init_page(&state, &state.visual.fore);
+	init_page(&state, &state.visual.back);
+
+    r_init(&state);
+
+    RRenderTexture fore_target = r_create_render_texture(state.window_size);
+    RRenderTexture back_target = r_create_render_texture(state.window_size);
 
     load(&state, PATH("static/bootstrap.ks"), NULL);
 
@@ -741,9 +740,6 @@ int main() {
 	// state.visual.default_font.shadow_color = GetColor(0x2b2b2b);
 	// state.visual.default_font.shadow_enabled = true
 	// TODO: Edge
-
-    RTexture fore_target = r_create_render_texture(state.window_size);
-    RTexture back_target = r_create_render_texture(state.window_size);
 
     while (r_main_loop(&state)) {
         double now = r_time_ms();
@@ -778,39 +774,43 @@ int main() {
 
         frame_work(&state, delta_ms);
 
-		r_begin_render_texture_draw(fore_target);
-            // BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-
-			r_clear_frame(R_BLANK);
-            draw_page(&state, &state.visual.fore);
-
-            // EndBlendMode();
-		r_end_render_texture_draw();
-
-        // Transition if needed
-        float fore_to_back_fade = 0.0;
-        if (state.transition_max_ms > 0.0f) {
-			//printf("TMax: %f ... TRem: %f\n", state.transition_max_ms, state.transition_remaining_ms);
-            float trans_progress_ms = state.transition_max_ms - state.transition_remaining_ms;
-            fore_to_back_fade = trans_progress_ms / state.transition_max_ms;
-        }
-
-        if (fore_to_back_fade > 0.0f) {
-			r_begin_render_texture_draw(back_target);
-                // BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+        r_begin_frame();
+			r_begin_render_texture_draw(fore_target);
+				// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
 
 				r_clear_frame(R_BLANK);
-                draw_page(&state, &state.visual.back);
+				draw_page(&state, &state.visual.fore);
 
-                // EndBlendMode();
-			r_end_render_texture_draw();
-        }
+				// EndBlendMode();
+			r_end_render_texture_draw(fore_target);
+
+			// Transition if needed
+			float fore_to_back_fade = 0.0;
+			if (state.transition_max_ms > 0.0f) {
+				//printf("TMax: %f ... TRem: %f\n", state.transition_max_ms, state.transition_remaining_ms);
+				float trans_progress_ms = state.transition_max_ms - state.transition_remaining_ms;
+				fore_to_back_fade = trans_progress_ms / state.transition_max_ms;
+			}
+
+			if (fore_to_back_fade > 0.0f) {
+				r_begin_render_texture_draw(back_target);
+					// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+
+					r_clear_frame(R_BLANK);
+					draw_page(&state, &state.visual.back);
+
+					// EndBlendMode();
+				r_end_render_texture_draw(back_target);
+			}
 
 
-        r_begin_frame();
             //DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
 
             if (fore_to_back_fade > 0.0f) {
+				r_draw_texture(
+					back_target.texture,
+					(RVec2) { 0, 0 },
+				);
                 // DrawTexturePro(
                 //     back_target.texture,
                 //     (Rectangle) { 0.0f, 0.0f, (float)back_target.texture.width, -(float)back_target.texture.height },

@@ -4,7 +4,7 @@
 #include "ui.h"
 #include "state.h"
 
-void* create_text(FataState* state, char* text) {
+void create_text(FataState* state, char* text) {
 	TextObject* text_object = malloc(sizeof(TextObject));
 	text_object->base = (UIObject) { .type = VO_TEXT };
 	text_object->text = text;

@@ -12,8 +12,14 @@
 // u32 __ctru_linear_heap_size = 32 * 1024 * 1024;
 
 typedef struct {
+	C3D_Tex texture;
+	C3D_RenderTarget* target;
+} CitroRenderTargetBundle;
+
+typedef struct {
     PrintConsole console_top;
     PrintConsole console_bottom;
+	C3D_RenderTarget* top_target;
 } Global3DS;
 
 // This is stupid but whatever
@@ -21,8 +27,6 @@ static Global3DS global_3ds = {0};
 
 
 void debug_print_memory(FataState* state) {
-    //return;
-
     struct mallinfo info = mallinfo();
     u32 total_heap_mem = info.arena; 
     u32 actually_used_mem = info.uordblks; 
@@ -39,22 +43,64 @@ void debug_print_memory(FataState* state) {
     printf("Area Usage:   %6ld KB (%.2f MB)\n", arena_used / 1024, arena_used / 1024.0 / 1024.0);
     printf("Linear Free:   %6ld KB (%.2f MB)\n", linear_free / 1024, linear_free / 1024.0 / 1024.0);
     printf("\e[0;0m");
-    consoleSelect(&global_3ds.console_top);
+    //consoleSelect(&global_3ds.console_top);
+}
+
+uint64_t next_pow2(uint64_t x) {
+	// https://jameshfisher.com/2018/03/30/round-up-power-2/
+	uint64_t p = 1;
+	while (p < x) p <<= 1;
+	return p;
 }
 
 void r_init(FataState* state) {
+	state->window_size = (RVec2) {
+		next_pow2(400),
+		next_pow2(240)
+	};
+
     romfsInit();
     gfxInitDefault();
-    C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
-    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
-    C2D_Prepare();
+
+    bool success = C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
+	assert(success);
+
+    // success = C2D_Init(64);
+	// assert(success);
+
+    // C2D_Prepare();
 
     consoleInit(GFX_BOTTOM, &global_3ds.console_bottom);
-    consoleInit(GFX_TOP, &global_3ds.console_top);
-    printf("FataMoru\n"); // Green text
+
+
+    printf("FataMor2\n"); // Green text
+
+	global_3ds.top_target = C3D_RenderTargetCreate(
+		240,
+		400,
+		GPU_RB_RGBA8,
+		GPU_RB_DEPTH24_STENCIL8
+	);
+	assert(global_3ds.top_target);
+
+	C3D_RenderTargetSetOutput(
+		global_3ds.top_target,
+		GFX_TOP,
+		GFX_LEFT,
+		(
+			GX_TRANSFER_FLIP_VERT(0) | \
+			GX_TRANSFER_OUT_TILED(0) | \
+			GX_TRANSFER_RAW_COPY(0) | \
+			GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | \
+			GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | \
+			GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO)
+		)
+	);
+
+    printf("FataMoru\n");
 }
 void r_shutdown() {
-    C2D_Fini();
+    // C2D_Fini();
     C3D_Fini();
     gfxExit();
     romfsExit();
@@ -104,16 +150,51 @@ RTexture r_load_texture(char* path) {
 
 void r_unload_texture(RTexture texture) { }
 
-RTexture r_create_render_texture(RVec2 size) {
-	return (RTexture) {
-		.valid = true,
-		.size = size
-	};
+
+RRenderTexture r_create_render_texture(RVec2 size) {
+    printf("[rendtex] Alloc %d x %d\n", size.x, size.y);
+
+    CitroRenderTargetBundle* bundle = calloc(1, sizeof(CitroRenderTargetBundle));
+	assert(bundle);
+
+    // 2. Try VRAM Allocation
+	//C3D_Tex tex;
+    bool vram_success = C3D_TexInitVRAM(&bundle->texture, size.x, size.y, GPU_RGBA8);
+	assert(vram_success);
+	printf("Why are we kosher..?\n");
+
+    // 3. Try Target Creation
+    bundle->target = C3D_RenderTargetCreateFromTex(
+        &bundle->texture,
+        GPU_TEXFACE_2D,
+        0,
+        GPU_RB_DEPTH24_STENCIL8
+    );
+
+	assert(bundle->target);
+
+    return (RRenderTexture) {
+        .valid = true,
+        .size = size,
+        .resource = bundle
+    };
 }
 
 
-void r_begin_render_texture_draw(RTexture texture) { }
-void r_end_render_texture_draw() { }
+void r_begin_render_texture_draw(RRenderTexture texture) {
+	CitroRenderTargetBundle* bundle = (CitroRenderTargetBundle*)texture.resource;
+	assert(bundle);
+
+	C3D_FrameDrawOn(bundle->target);
+}
+
+void r_end_render_texture_draw(RRenderTexture texture) {
+	CitroRenderTargetBundle* bundle = (CitroRenderTargetBundle*)texture.resource;
+	assert(bundle);
+
+	C3D_FrameDrawOn(global_3ds.top_target);
+	C3D_TexBind(0, &bundle->texture);
+}
 
 void r_draw_texture_tint_sample(RTexture texture, RVec2 position, RColor tint, RRect sample_rect) { }
 

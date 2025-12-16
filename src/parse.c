@@ -268,7 +268,7 @@ void process_command(MemArena* arena, CommandNode* command, char** src) {
 }
 
 BaseNode* parse_one(MemArena* arena, char** src) {
-	while (**src && **src == '\t' || **src == '\n') {
+	while (**src && (**src == '\t' || **src == '\n')) {
         (*src)++;
 	}
 

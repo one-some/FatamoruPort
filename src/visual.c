@@ -161,5 +161,6 @@ VisualLayer* get_layer(FataState* state, char* layer_name, char* page_name) {
 	}
 
 	assert(false);
+	return NULL;
 }
 

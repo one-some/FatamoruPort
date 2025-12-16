@@ -6,11 +6,16 @@ int main(int argc, char* argv[]) {
     romfsInit();
     gfxInitDefault();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
-    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
-    C2D_Prepare();
+    // C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
+    // C2D_Prepare();
 
     consoleInit(GFX_BOTTOM, NULL);
     printf("FataMoru\n"); // Green text
+	C3D_Tex tex;
+    bool vram_success = C3D_TexInitVRAM(&tex, 256, 512, GPU_RGBA8);
+	if (!vram_success) printf("UH OHHHH\n");
+    vram_success = C3D_TexInitVRAM(&tex, 256, 512, GPU_RGBA8);
+	if (!vram_success) printf("uh oh 2\n");
 
     // 2. Setup
     C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
