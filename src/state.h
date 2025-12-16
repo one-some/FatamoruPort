@@ -1,9 +1,12 @@
 #pragma once
+#include "mem.h"
 #include "vector.h"
 #include "visual.h"
 #include "audio.h"
 
 typedef struct FataState {
+    MemArena static_arena;
+
     Vector nodes;
     Vector* target_nodes;
 

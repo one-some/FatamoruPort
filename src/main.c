@@ -50,14 +50,17 @@ void load(FataState* state, char* path, char* label_target) {
         state->nodes = v_new();
 
         // WARNING: When (if) we free later, the ptr will be gone! Save it!!
-        char* src = load_src(path);
+        char* src_origin = load_src(path);
+        char* src = src_origin;
 
         while (*src) {
-            BaseNode* node = parse_one(&src);
+            BaseNode* node = parse_one(&state->static_arena, &src);
             if (!node) continue;
 
             v_append(&state->nodes, node);
         }
+
+        free(src_origin);
 	}
 
 	for (int i=0; i<state->nodes.length;i++) {
@@ -687,6 +690,7 @@ void frame_work(FataState* state, double delta_ms) {
 
 int main() {
 	//printf("FataMoru!! ^-^\n");
+    //
 
     FataState state = {0};
     r_init(&state);
@@ -711,7 +715,19 @@ int main() {
 	state.canvas_size = (RVec2) { 800, 600 };
 	state.window_size = (RVec2) { 800, 600 };
 
+    printf("\n\n\n\n\nB:%d\n", state.static_arena.base);
+    a_malloc(&state.static_arena, 1337);
+    //a_malloc(&state.static_arena, 1337);
+    //a_malloc(&state.static_arena, 1337);
+    //a_malloc(&state.static_arena, 1337);
+    printf("\nP:%d\n", state.static_arena.base);
+
     load(&state, PATH("static/bootstrap.ks"), NULL);
+
+    // while (r_main_loop(&state)) {
+    //     r_begin_frame();
+    //     r_end_frame();
+    // }
 
 	// Font_DroidSerif = r_load_font("./static/DroidSerif.ttf");
 	// Font_LibreBaskerville = r_load_font("./static/LibreBaskerville.ttf");
@@ -815,4 +831,6 @@ int main() {
 
         r_end_frame();
     }
+
+    return 0;
 }

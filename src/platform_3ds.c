@@ -1,9 +1,11 @@
 #ifdef PLATFORM_3DS
 
 #include "rosetta.h"
+#include "state.h"
 #include <sys/time.h>
 #include <stddef.h>
 
+#include <malloc.h>
 #include <citro2d.h>
 #include <3ds.h>
 
@@ -16,32 +18,23 @@ u32 __ctru_linear_heap_size = 32 * 1024 * 1024;
 // // This is stupid but whatever
 // static Global3DS global_3ds = {0};
 
-#include <malloc.h> // Required for mallinfo
 
-void debug_print_memory() {
+void debug_print_memory(FataState* state) {
+    return;
+
     struct mallinfo info = mallinfo();
-
-    // 1. Total Heap Size (The "124MB" you saw earlier)
-    // This is the total memory the OS gave your app.
     u32 total_heap_mem = info.arena; 
-
-    // 2. Actually Used (Textures, Variables, Structs)
-    // This is the number you need to watch!
     u32 actually_used_mem = info.uordblks; 
-
-    // 3. True Free Space (Space left for new mallocs)
     u32 true_free_mem = info.fordblks;
+    u32 arena_used = state->static_arena.offset;
 
-    printf("\x1b[0;0H"); // Move cursor to top
+    printf("\x1b[0;0H\e[0;36m");
     printf("=== REAL Memory Stats ===\n");
     printf("Total Heap:  %6ld KB (%.2f MB)\n", total_heap_mem / 1024, total_heap_mem / 1024.0 / 1024.0);
     printf("Active Data: %6ld KB (%.2f MB)\n", actually_used_mem / 1024, actually_used_mem / 1024.0 / 1024.0);
     printf("True Free:   %6ld KB (%.2f MB)\n", true_free_mem / 1024, true_free_mem / 1024.0 / 1024.0);
-
-    // Warning Logic
-    if (true_free_mem < (2 * 1024 * 1024)) { // Less than 2MB free
-        printf("\x1b[31m[CRITICAL WARNING] LOW MEMORY!\x1b[0m\n");
-    }
+    printf("Area Usage:   %6ld KB (%.2f MB)\n", arena_used / 1024, arena_used / 1024.0 / 1024.0);
+    printf("\e[0;0m");
 }
 
 void r_init(FataState* state) {
@@ -62,6 +55,8 @@ void r_shutdown() {
 }
 
 bool r_main_loop(FataState* state) {
+	debug_print_memory(state);
+
 	return aptMainLoop();
 }
 
@@ -71,8 +66,6 @@ void r_begin_frame() {
 }
 void r_end_frame() {
 	C3D_FrameEnd(0);
-
-	debug_print_memory();
 }
 
 void r_clear_frame(RColor color) {
@@ -86,8 +79,18 @@ double r_time_ms() {
 }
 
 RTexture r_load_texture(char* path) {
+    // TODO: Can we just render an image? Prob would be awesomer
+    // TODO: Look at the header and see if it's really this serious
+    C2D_SpriteSheet* sheet = malloc(sizeof(C2D_SpriteSheet));
+    *sheet = C2D_SpriteSheetLoad(path);
+    assert(*sheet);
+
+    C2D_Sprite* sprite = malloc(sizeof(C2D_Sprite));
+    C2D_SpriteFromSheet(sprite, *sheet, 0);
+
 	return (RTexture) {
-		.valid = true
+		.valid = true,
+        .resource = sprite
 	};
 }
 

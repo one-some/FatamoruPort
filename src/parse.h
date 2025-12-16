@@ -50,13 +50,13 @@ typedef struct {
 
 bool is_whitespace(char c);
 char* load_src(const char* path);
-LabelNode* eat_label(char** src);
-CommandNode* eat_bracket_command(char** src);
-CommandNode* eat_at_command(char** src);
-void process_command(CommandNode* command, char** src);
-BaseNode* parse_one(char** src);
+LabelNode* eat_label(MemArena* arena, char** src);
+CommandNode* eat_bracket_command(MemArena* arena, char** src);
+CommandNode* eat_at_command(MemArena* arena, char** src);
+void process_command(MemArena* arena, CommandNode* command, char** src);
+BaseNode* parse_one(MemArena* arena, char** src);
 void print_node(BaseNode* base_node, const char* context);
-Vector slice_command(char* cmd);
+Vector slice_command(MemArena* arena, char* cmd);
 void strip_quotes(char* str);
 char* get_arg_str(Vector* args, char* key);
 int get_arg_int(Vector* args, char* key);

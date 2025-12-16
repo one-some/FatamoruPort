@@ -13,6 +13,7 @@ LIBPATHS="-L$DEVKITPRO/libctru/lib -L$DEVKITPRO/libcitro2d/lib -L$DEVKITPRO/libc
 LIBS="-lcitro2d -lcitro3d -lctru -lm"
 
 echo "Cleaning up..."
+mkdir -p 3ds/out
 rm -f 3ds/out/*
 mkdir -p 3ds/romfs
 

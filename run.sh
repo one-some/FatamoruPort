@@ -3,5 +3,6 @@ gcc -o main \
     src/*.c \
     -g -O0 \
     -lraylib \
+    -fsanitize=address \
 	-D PLATFORM_STUB \
 && ./main

@@ -1,7 +1,8 @@
 // (C)laire 
+#include "mem.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #include <assert.h>
 
 #include "parse.h"
@@ -36,15 +37,15 @@ char* load_src(const char* path) {
 	return src;
 }
 
-LabelNode* eat_label(char** src) {
+LabelNode* eat_label(MemArena* arena, char** src) {
 	assert(**src == '*');
 	(*src)++;
 
 	const int LAB_PART_LEN = 63;
 
-	LabelNode* out = malloc(sizeof(LabelNode));
+	LabelNode* out = a_malloc(arena, sizeof(LabelNode));
 	out->base = (BaseNode) { .type = NODE_LABEL };
-	out->label_id = malloc(LAB_PART_LEN + 1);
+	out->label_id = a_malloc(arena, LAB_PART_LEN + 1);
 	out->label_title = NULL;
 
 	int i = 0;
@@ -57,7 +58,7 @@ LabelNode* eat_label(char** src) {
 		if (c == '|') {
 			target[i] = '\0';
 
-			out->label_title = malloc(LAB_PART_LEN + 1);
+			out->label_title = a_malloc(arena, LAB_PART_LEN + 1);
 			target = out->label_title;
 			i = 0;
 			(*src)++;
@@ -74,24 +75,24 @@ LabelNode* eat_label(char** src) {
 	return out;
 }
 
-CommandNode* command_from_line(char* line) {
-	CommandNode* out = malloc(sizeof(CommandNode));
+CommandNode* command_from_line(MemArena* arena, char* line) {
+	CommandNode* out = a_malloc(arena, sizeof(CommandNode));
 	out->base = (BaseNode) { .type = NODE_COMMAND };
 	out->args = v_new();
 	out->data_type = CMD_DATA_NONE;
 	out->data = NULL;
 
-	Vector parts = slice_command(line);
+	Vector parts = slice_command(arena, line);
 
     for (int i=0; i<parts.length; i++) {
         char* arg_str = v_get(&parts, i);
 
-        CommandArg* arg = malloc(sizeof(CommandArg));
+        CommandArg* arg = a_malloc(arena, sizeof(CommandArg));
 
 		const int BUF_LEN = 127;
 
-        arg->key = malloc(BUF_LEN + 1);
-        arg->value = malloc(BUF_LEN + 1);
+        arg->key = a_malloc(arena, BUF_LEN + 1);
+        arg->value = a_malloc(arena, BUF_LEN + 1);
         arg->value[0] = '\0';
 
         char* buf = arg->key;
@@ -120,7 +121,7 @@ CommandNode* command_from_line(char* line) {
     return out;
 }
 
-CommandNode* eat_bracket_command(char** src) {
+CommandNode* eat_bracket_command(MemArena* arena, char** src) {
 	assert(**src == '[');
 	(*src)++;
 
@@ -140,12 +141,12 @@ CommandNode* eat_bracket_command(char** src) {
     line[line_i] = '\0';
 	(*src)++;
 
-    CommandNode* out = command_from_line(line);
+    CommandNode* out = command_from_line(arena, line);
     free(line);
 	return out;
 }
 
-CommandNode* eat_at_command(char** src) {
+CommandNode* eat_at_command(MemArena* arena, char** src) {
 	assert(**src == '@');
 	(*src)++;
 
@@ -165,12 +166,12 @@ CommandNode* eat_at_command(char** src) {
     }
     line[line_i] = '\0';
 
-    CommandNode* out = command_from_line(line);
+    CommandNode* out = command_from_line(arena, line);
     free(line);
     return out;
 }
 
-void process_command(CommandNode* command, char** src) {
+void process_command(MemArena* arena, CommandNode* command, char** src) {
     CommandArg* arg = v_get(&command->args, 0);
     char* cmd = arg->key;
 
@@ -186,9 +187,9 @@ void process_command(CommandNode* command, char** src) {
             CommandNode* node;
 
             if (c == '@') {
-                node = eat_at_command(src);
+                node = eat_at_command(arena, src);
             } else if (c == '[') {
-                node = eat_bracket_command(src);
+                node = eat_bracket_command(arena, src);
             }
 
             assert(node);
@@ -200,17 +201,17 @@ void process_command(CommandNode* command, char** src) {
     } else if (strcmp(cmd, "if") == 0) {
 		command->data_type = CMD_DATA_IF;
 
-		Vector* clauses = malloc(sizeof(Vector));
+		Vector* clauses = a_malloc(arena, sizeof(Vector));
 		*clauses = v_new();
 
         // TODO
-		IfClause* clause = malloc(sizeof(IfClause));
+		IfClause* clause = a_malloc(arena, sizeof(IfClause));
 		clause->condition = get_arg_str(&command->args, "exp");
 		assert(clause->condition);
 		clause->children = v_new();
 
         while (**src) {
-            BaseNode* node = parse_one(src);
+            BaseNode* node = parse_one(arena, src);
             if (!node) continue;
 
             if (node->type != NODE_COMMAND) {
@@ -227,7 +228,7 @@ void process_command(CommandNode* command, char** src) {
 			) {
 				v_append(clauses, clause);
 
-				clause = malloc(sizeof(IfClause));
+				clause = a_malloc(arena, sizeof(IfClause));
 				clause->condition = get_arg_str(&cmd_node->args, "exp");
 				clause->children = v_new();
 				continue;
@@ -244,14 +245,14 @@ void process_command(CommandNode* command, char** src) {
 
 		command->data = clauses;
     } else if (strcmp(cmd, "macro") == 0) {
-		Vector* nodes = malloc(sizeof(Vector));
+		Vector* nodes = a_malloc(arena, sizeof(Vector));
 		*nodes = v_new();
 
 		command->data_type = CMD_DATA_MACRO;
 		command->data = nodes;
 
         while (**src) {
-            BaseNode* node = parse_one(src);
+            BaseNode* node = parse_one(arena, src);
             if (!node) continue;
 
             print_node(node, "parse-macro");
@@ -266,7 +267,7 @@ void process_command(CommandNode* command, char** src) {
     }
 }
 
-BaseNode* parse_one(char** src) {
+BaseNode* parse_one(MemArena* arena, char** src) {
 	while (**src && **src == '\t' || **src == '\n') {
         (*src)++;
 	}
@@ -275,15 +276,15 @@ BaseNode* parse_one(char** src) {
 	if (!c) return NULL;
 
     if (c == '[') {
-        CommandNode* command = eat_bracket_command(src);
-        process_command(command, src);
+        CommandNode* command = eat_bracket_command(arena, src);
+        process_command(arena, command, src);
 		return (BaseNode*)command;
     } else if (c == '@') {
-        CommandNode* command = eat_at_command(src);
-        process_command(command, src);
+        CommandNode* command = eat_at_command(arena, src);
+        process_command(arena, command, src);
 		return (BaseNode*)command;
     } else if (c == '*') {
-		return (BaseNode*)eat_label(src);
+		return (BaseNode*)eat_label(arena, src);
     } else if (c == ';') {
         // Eat comment
         while(++(*src)) {
@@ -291,9 +292,9 @@ BaseNode* parse_one(char** src) {
         }
 		return NULL;
     } else {
-		TextNode* out = malloc(sizeof(TextNode));
+		TextNode* out = a_malloc(arena, sizeof(TextNode));
 		out->base = (BaseNode) { .type = NODE_TEXT };
-		out->text = malloc(256);
+		out->text = a_malloc(arena, 256);
 
 		char c;
 		int i = 0;
@@ -377,7 +378,7 @@ void strip_quotes(char* str) {
     }
 }
 
-Vector slice_command(char* cmd) {
+Vector slice_command(MemArena* arena, char* cmd) {
 	Vector parts = v_new();
 
     const int MAX_BUF_LEN = 127;
@@ -387,7 +388,7 @@ Vector slice_command(char* cmd) {
 
 	while (*cmd) {
 		if (!active_buffer) {
-			active_buffer = malloc(MAX_BUF_LEN + 1);
+			active_buffer = a_malloc(arena, MAX_BUF_LEN + 1);
 			i = 0;
 		}
 

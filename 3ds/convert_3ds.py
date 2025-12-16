@@ -70,3 +70,16 @@ for img_dir in [
         if proc.returncode != 0:
             print("AHHHHHHHH!!")
         # assert proc.returncode == 0
+
+for direct_copy in ["bgm", "scenario", "sound"]:
+    shutil.copytree(
+        CACHE_DIR / direct_copy,
+        ROMFS / direct_copy,
+        dirs_exist_ok=True
+    )
+
+shutil.copytree(
+    Path("../static"),
+    ROMFS / "static",
+    dirs_exist_ok=True
+)
