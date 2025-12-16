@@ -25,7 +25,7 @@ typedef struct {
 	RTexture texture;
 
     bool hovered;
-    AudioTrack enter_se;
+    RSound enter_se;
 } ButtonObject;
 
 typedef struct {

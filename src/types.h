@@ -21,4 +21,5 @@ typedef struct {
 
 bool rect_contains(RRect rect, RVec2 point);
 
-#define R_WHITE (RColor) { 0xFF, 0xF, 0xFF, 0xFF }
+#define R_WHITE (RColor) { 0xFF, 0xFF, 0xFF, 0xFF }
+#define R_BLANK (RColor) { 0xFF, 0xFF, 0xFF, 0x00 }

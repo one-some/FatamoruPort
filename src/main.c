@@ -133,8 +133,7 @@ void return_from_callstack(FataState* state) {
 }
 
 char* find_file(char* storage, const char* patterns[]) {
-    for (int i=0; ; i++) {
-        if (!patterns[i]) break;
+    for (int i=0; patterns[i]; i++) {
 
         char path_buffer[256];
         snprintf(path_buffer, sizeof(path_buffer), patterns[i], storage);
@@ -146,27 +145,36 @@ char* find_file(char* storage, const char* patterns[]) {
         }
     }
 
+	printf("[file] Couldn't find '%s' anywhere:\n", storage);
+    for (int i=0; patterns[i]; i++) {
+		printf("- %s\n", patterns[i]);
+	}
     assert(false);
 }
 
 char* find_bgm(char* storage) {
-	const char* patterns[] = { "./cache/bgm/%s.ogg", NULL };
+	const char* patterns[] = { DATA_PATH("bgm/%s.ogg"), NULL };
 	return find_file(storage, patterns);
 }
 
 char* find_sfx(char* storage) {
-	const char* patterns[] = { "./cache/sound/%s.ogg", NULL };
+	const char* patterns[] = { DATA_PATH("sound/%s.ogg"), NULL };
 	return find_file(storage, patterns);
 }
 
 char* find_image(char* storage) {
 	const char* patterns[] = {
-		"./cache/bgimage/%s.png",
-		"./cache/bgimage/%s.jpg",
-		"./cache/image/%s.png",
-		"./cache/image/%s.jpg",
-		"./cache/fgimage/%s.png",
-		"./cache/fgimage/%s.jpg",
+		// HACK: Include port paths. Also include them first so it's faster
+		DATA_PATH("bgimage/%s.t3x"),
+		DATA_PATH("image/%s.t3x"),
+		DATA_PATH("fgimage/%s.t3x"),
+
+		DATA_PATH("bgimage/%s.png"),
+		DATA_PATH("bgimage/%s.jpg"),
+		DATA_PATH("image/%s.png"),
+		DATA_PATH("image/%s.jpg"),
+		DATA_PATH("fgimage/%s.png"),
+		DATA_PATH("fgimage/%s.jpg"),
 		NULL
 	};
 	return find_file(storage, patterns);
@@ -174,9 +182,9 @@ char* find_image(char* storage) {
 
 char* find_script(char* storage) {
 	const char* patterns[] = {
-		"./cache/scenario/%s",
-		"./cache/others/%s",
-		"./cache/system/%s",
+		DATA_PATH("scenario/%s"),
+		DATA_PATH("others/%s"),
+		DATA_PATH("system/%s"),
 		NULL
 	};
 	return find_file(storage, patterns);
@@ -255,14 +263,11 @@ bool run_command(CommandNode* command, FataState* state) {
             assert(false);
         }
 
-        if (layer->texture_valid) {
-            UnloadTexture(layer->texture);
+        if (layer->texture.valid) {
+			r_unload_texture(layer->texture);
         }
 
-        Image img = LoadImage(path);
-        layer->texture = LoadTextureFromImage(img);
-        layer->texture_valid = true;
-        UnloadImage(img);
+        layer->texture = r_load_texture(path);
 
         int top_px = get_arg_int(args, "top");
 		if (top_px != NO_ARG_INT) {
@@ -294,13 +299,12 @@ bool run_command(CommandNode* command, FataState* state) {
         assert(path);
 
         if (state->audio.bgm.valid) {
-            StopSound(state->audio.bgm.resource);
-            UnloadSound(state->audio.bgm.resource);
+			r_stop_sound(state->audio.bgm);
+			r_unload_sound(state->audio.bgm);
         }
 
-        state->audio.bgm.valid = true;
-        state->audio.bgm.resource = LoadSound(path);
-        play_sound(&state->audio.bgm);
+        state->audio.bgm = r_load_sound(path);
+        r_play_sound(state->audio.bgm);
     } else if (strcmp("playse", cmd) == 0) {
         char* storage = get_arg_str(args, "storage");
         assert(storage);
@@ -308,8 +312,8 @@ bool run_command(CommandNode* command, FataState* state) {
         char* path = find_sfx(storage);
         assert(path);
 
-        AudioTrack track = load_track(path);
-        play_sound(&track);
+        RSound track = r_load_sound(path);
+        r_play_sound(track);
     } else if (strcmp("trans", cmd) == 0) {
         char* method = get_arg_str(args, "method");
         assert(method);
@@ -383,10 +387,10 @@ bool run_command(CommandNode* command, FataState* state) {
 
         char* enter_se_storage = get_arg_str(args, "enterse");
         if (enter_se_storage) {
-            button->enter_se = load_track(find_sfx(enter_se_storage));
+            button->enter_se = r_load_sound(find_sfx(enter_se_storage));
         }
 
-        button->textures = read_button_textures(path);
+        button->texture = r_load_texture(path);
 
 		v_append(&state->visual.active_layer->children, button);
     } else if (strcmp("close", cmd) == 0) {
@@ -447,7 +451,7 @@ bool run_command(CommandNode* command, FataState* state) {
 			printf("Resetting to (%d, %d)\n", layer->margins.left, layer->margins.top);
 		}
     } else if (strcmp("font", cmd) == 0) {
-		FontConfig* font = &state->visual.active_layer->font;
+		RFont* font = &state->visual.active_layer->font;
 
 		char* size_str = get_arg_str(args, "size");
 		if (size_str) {
@@ -499,15 +503,12 @@ bool run_command(CommandNode* command, FataState* state) {
 			char* path = find_image(frame_storage);
 			assert(path);
 
-			Image img = LoadImage(path);
-			layer->texture = LoadTextureFromImage(img);
-			layer->texture_valid = true;
-			UnloadImage(img);
+			layer->texture = r_load_texture(path);
 		}
     } else if (strcmp("title", cmd) == 0) {
         char* name = get_arg_str(args, "name");
 		assert(name);
-		SetWindowTitle(name);
+		r_set_window_title(name);
     } else if (strcmp("r", cmd) == 0) {
 		VisualLayer* layer = state->visual.active_layer;
 		layer->pointer_pos.x = layer->margins.left;
@@ -573,7 +574,7 @@ bool run_command(CommandNode* command, FataState* state) {
             layer->pointer_pos.x = 75 + layer->margins.left;
             layer->pointer_pos.y = 1 + layer->margins.top;
 
-            layer->font.resource = Font_DroidSerif;
+            layer->font = Font_DroidSerif;
             layer->font.size = 16;
 
             size_t str_size = strlen(name) + 5;
@@ -591,14 +592,9 @@ bool run_command(CommandNode* command, FataState* state) {
     } else if (strcmp("c", cmd) == 0) {
         char* text = get_arg_str(args, "text");
 
-		FontConfig* font = &state->visual.active_layer->font;
+		RFont font = state->visual.active_layer->font;
 
-		Vector2 size = MeasureTextEx(
-			font->resource,
-			text,
-			(float)font->size,
-            0.0f
-		);
+		RVec2 size = r_measure_text(font, text);
 
 		int pos = (state->canvas_size.x - size.x) / 2;
 		state->visual.active_layer->pointer_pos.x = pos;
@@ -693,6 +689,7 @@ int main() {
 	//printf("FataMoru!! ^-^\n");
 
     FataState state = {0};
+    r_init(&state);
 
 	state.visual.active_layer = &state.visual.fore.message_layer_zero;
 
@@ -711,32 +708,24 @@ int main() {
 	state.can_skip_wait = false;
 	state.call_stack = v_new();
     state.macros = v_new();
-	state.canvas_size = (Vec2) { 800, 600 };
-	state.window_size = (Vec2) { 800, 600 };
+	state.canvas_size = (RVec2) { 800, 600 };
+	state.window_size = (RVec2) { 800, 600 };
+
+    load(&state, PATH("static/bootstrap.ks"), NULL);
+
+	// Font_DroidSerif = r_load_font("./static/DroidSerif.ttf");
+	// Font_LibreBaskerville = r_load_font("./static/LibreBaskerville.ttf");
+	Font_LibreBaskerville.size = 18;
+	Font_LibreBaskerville.spacing = 8;
 
 	// See system/Config.tjs
-	state.visual.default_font.resource = Font_LibreBaskerville;
-	state.visual.default_font.size = 18;
-	state.visual.default_font.spacing = 8;
+	state.visual.default_font = Font_LibreBaskerville;
 	// state.visual.default_font.shadow_color = GetColor(0x2b2b2b);
 	// state.visual.default_font.shadow_enabled = true
 	// TODO: Edge
-	state.visual.default_font.color = WHITE;
 
-    load(&state, "./static/bootstrap.ks", NULL);
-
-    r_init(&state);
-
-	Font_DroidSerif = LoadFont("./static/DroidSerif.ttf");
-    SetTextureFilter(Font_DroidSerif.texture, TEXTURE_FILTER_BILINEAR);
-	Font_LibreBaskerville = LoadFont("./static/LibreBaskerville.ttf");
-    SetTextureFilter(Font_LibreBaskerville.texture, TEXTURE_FILTER_BILINEAR);
-
-
-    RenderTexture2D fore_target = LoadRenderTexture(800, 600);
-    SetTextureFilter(fore_target.texture, TEXTURE_FILTER_BILINEAR);
-    RenderTexture2D back_target = LoadRenderTexture(800, 600);
-    SetTextureFilter(back_target.texture, TEXTURE_FILTER_BILINEAR);
+    RTexture fore_target = r_create_render_texture(state.window_size);
+    RTexture back_target = r_create_render_texture(state.window_size);
 
     while (r_main_loop(&state)) {
         double now = r_time_ms();
@@ -746,7 +735,7 @@ int main() {
 
         state.last_time_ms = now;
 
-		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_LEFT_CONTROL)) {
+		if (r_get_click() || r_get_skip_held()) {
 			state.stopped_until_click = false;
 
 			if (
@@ -763,26 +752,22 @@ int main() {
 			}
 		}
 
-        Rectangle render_rect;
+        RRect render_rect = {0};
         render_rect.height = (float)state.window_size.y;
         render_rect.width = render_rect.height / (float)state.canvas_size.y * (float)state.canvas_size.x;
         render_rect.x = (float)((state.window_size.x - render_rect.width) / 2);
         render_rect.y = 0;
 
-		Vector2 mouse_pos = GetMousePosition();
-        mouse_pos.x = (mouse_pos.x + render_rect.x) / (float)state.window_size.x * state.canvas_size.x;
-        mouse_pos.y = mouse_pos.y / (float)state.window_size.y * state.canvas_size.y;
-
         frame_work(&state, delta_ms);
 
-        BeginTextureMode(fore_target);
-            BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+		r_begin_render_texture_draw(fore_target);
+            // BeginBlendMode(BLEND_CUSTOM_SEPARATE);
 
-			ClearBackground(BLANK);
+			r_clear_frame(R_BLANK);
             draw_page(&state, &state.visual.fore);
 
-            EndBlendMode();
-        EndTextureMode();
+            // EndBlendMode();
+		r_end_render_texture_draw();
 
         // Transition if needed
         float fore_to_back_fade = 0.0;
@@ -793,41 +778,40 @@ int main() {
         }
 
         if (fore_to_back_fade > 0.0f) {
-            BeginTextureMode(back_target);
-                BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+			r_begin_render_texture_draw(back_target);
+                // BeginBlendMode(BLEND_CUSTOM_SEPARATE);
 
-				ClearBackground(BLANK);
+				r_clear_frame(R_BLANK);
                 draw_page(&state, &state.visual.back);
 
-                EndBlendMode();
-            EndTextureMode();
+                // EndBlendMode();
+			r_end_render_texture_draw();
         }
 
-        // (Rectangle) { 0.0f, 0.0f, (float)state.window_size.x, (float)state.window_size.y },
 
         r_begin_frame();
             //DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
 
             if (fore_to_back_fade > 0.0f) {
-                DrawTexturePro(
-                    back_target.texture,
-                    (Rectangle) { 0.0f, 0.0f, (float)back_target.texture.width, -(float)back_target.texture.height },
-                    render_rect,
-                    (Vector2) { 0, 0 },
-                    0.0f,
-                    WHITE
-                );
+                // DrawTexturePro(
+                //     back_target.texture,
+                //     (Rectangle) { 0.0f, 0.0f, (float)back_target.texture.width, -(float)back_target.texture.height },
+                //     render_rect,
+                //     (Vector2) { 0, 0 },
+                //     0.0f,
+                //     R_WHITE
+                // );
             }
 
             // We gotta do this whole song and dance because it's flipped
-            DrawTexturePro(
-                fore_target.texture,
-                (Rectangle) { 0.0f, 0.0f, (float)fore_target.texture.width, -(float)fore_target.texture.height },
-                render_rect,
-                (Vector2) { 0, 0 },
-                0.0f,
-                Fade(WHITE, 1.0f - fore_to_back_fade)
-            );
+            // DrawTexturePro(
+            //     fore_target.texture,
+            //     (Rectangle) { 0.0f, 0.0f, (float)fore_target.texture.width, -(float)fore_target.texture.height },
+            //     render_rect,
+            //     (Vector2) { 0, 0 },
+            //     0.0f,
+            //     Fade(R_WHITE, 1.0f - fore_to_back_fade)
+            // );
 
         r_end_frame();
     }

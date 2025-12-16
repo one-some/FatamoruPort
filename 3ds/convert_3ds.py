@@ -21,37 +21,52 @@ TOP_SCREEN_SIZE = (400, 240)
 
 # We need to automatically (mostly) convert the large images in FataMoru into sprites the 3ds can manage
 
-BG_DEST = CONVERT_DIR / "bgimage"
-BG_DEST.mkdir()
+for img_dir in [
+    "bgimage",
+    "image"
+]:
 
-(ROMFS / "bgimage").mkdir(exist_ok=True)
-(SRC / "bgimage").mkdir(exist_ok=True)
+    dest = CONVERT_DIR / img_dir
+    dest.mkdir()
 
-for child in (CACHE_DIR / "bgimage").iterdir():
-    if not child.is_file():
-        continue
+    (ROMFS / img_dir).mkdir(exist_ok=True)
+    # (SRC / "bgimage").mkdir(exist_ok=True)
 
-    img = Image.open(child)
+    for child in (CACHE_DIR / img_dir).iterdir():
+        if not child.is_file():
+            continue
 
-    if img.size != (800, 600):
-        continue
+        final_target = ROMFS / img_dir / f"{child.stem}.t3x"
+        if final_target.is_file():
+            print("Skip.")
+            continue
 
-    img = ImageOps.fit(img, TOP_SCREEN_SIZE, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-    img.save(BG_DEST / child.name)
-    print(child, img)
+        img = Image.open(child)
 
-    proc = subprocess.run([
-        TEX_3DS,
-        "--atlas",
-        "-f",
-        "rgb565",
-        "-z",
-        "auto",
-        # "-H",
-        # SRC / "bgimage" / f"{child.stem}.h",
-        "-o",
-        ROMFS / "bgimage" / f"{child.stem}.t3x",
-        BG_DEST / child.name
-    ])
+        compression = "etc1a4"
 
-    assert proc.returncode == 0
+        if img.size == (800, 600) or img.size[0] > 800:
+            img = ImageOps.fit(img, TOP_SCREEN_SIZE, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+            compression = "etc1"
+
+        img.save("/tmp/moru.png")
+        print(child, img)
+
+        proc = subprocess.run([
+            TEX_3DS,
+            "--atlas",
+            "-f",
+            compression,
+            "-z",
+            "auto",
+            # "-H",
+            # SRC / "bgimage" / f"{child.stem}.h",
+            "-o",
+            final_target,
+            "/tmp/moru.png"
+            # BG_DEST / child.name
+        ])
+
+        if proc.returncode != 0:
+            print("AHHHHHHHH!!")
+        # assert proc.returncode == 0

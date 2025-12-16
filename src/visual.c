@@ -75,7 +75,7 @@ void draw_layer(FataState* state, VisualLayer* layer) {
             bool mouse_inside = rect_contains(rect, mouse_pos);
 
             if (!button->hovered && mouse_inside) {
-                play_sound(&button->enter_se);
+                r_play_sound(button->enter_se);
             }
             button->hovered = mouse_inside;
 
