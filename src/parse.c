@@ -57,6 +57,7 @@ LabelNode* eat_label(MemArena* arena, char** src) {
 		if (c == '\n') break;
 		if (c == '|') {
 			target[i] = '\0';
+			a_resize_last_alloc(arena, i + 1);
 
 			out->label_title = a_malloc(arena, LAB_PART_LEN + 1);
 			target = out->label_title;
@@ -71,6 +72,7 @@ LabelNode* eat_label(MemArena* arena, char** src) {
 		(*src)++;
 	}
 	target[i] = '\0';
+	a_resize_last_alloc(arena, i + 1);
 
 	return out;
 }
@@ -92,15 +94,24 @@ CommandNode* command_from_line(MemArena* arena, char* line) {
 		const int BUF_LEN = 127;
 
         arg->key = a_malloc(arena, BUF_LEN + 1);
-        arg->value = a_malloc(arena, BUF_LEN + 1);
-        arg->value[0] = '\0';
+        arg->value = NULL;
+        //arg->value[0] = '\0';
+
+		bool hit_value = false;
 
         char* buf = arg->key;
         int buf_i = 0;
 
         while (*arg_str) {
             if (*arg_str == '=' && buf == arg->key) {
+				// We don't want to mistakenly allocate multiple value fields..?
+				assert(!hit_value);
+				hit_value = true;
+
                 buf[buf_i] = '\0';
+				a_resize_last_alloc(arena, buf_i + 1);
+
+				arg->value = a_malloc(arena, BUF_LEN + 1);
                 buf = arg->value;
                 buf_i = 0;
 
@@ -114,6 +125,10 @@ CommandNode* command_from_line(MemArena* arena, char* line) {
         }
 
         buf[buf_i] = '\0';
+		a_resize_last_alloc(arena, buf_i + 1);
+
+		if (!arg->value) arg->value = "";
+
         strip_quotes(arg->value);
         v_append(&out->args, arg);
     }
@@ -311,6 +326,7 @@ BaseNode* parse_one(MemArena* arena, char** src) {
 			(*src)++;
 		}
 		out->text[i] = '\0';
+		a_resize_last_alloc(arena, i + 1);
 
 		return (BaseNode*)out;
     }
@@ -413,6 +429,7 @@ Vector slice_command(MemArena* arena, char* cmd) {
 
 			if (!next_eq && !prev_eq) {
 				active_buffer[i] = '\0';
+				a_resize_last_alloc(arena, i + 1);
 				v_append(&parts, active_buffer);
 				active_buffer = NULL;
 
@@ -420,8 +437,8 @@ Vector slice_command(MemArena* arena, char* cmd) {
 			}
 
 			if (next_eq) {
-				active_buffer[i++] = '=';
                 assert(i < MAX_BUF_LEN);
+				active_buffer[i++] = '=';
 				cmd++;
 			}
 
@@ -434,6 +451,7 @@ Vector slice_command(MemArena* arena, char* cmd) {
 	}
 
 	active_buffer[i] = '\0';
+	a_resize_last_alloc(arena, i + 1);
 	v_append(&parts, active_buffer);
 
 	return parts;
