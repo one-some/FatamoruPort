@@ -14,6 +14,7 @@
 typedef struct {
 	C3D_Tex texture;
 	C3D_RenderTarget* target;
+	C2D_Image image;
 } CitroRenderTargetBundle;
 
 typedef struct {
@@ -150,7 +151,6 @@ RTexture r_load_texture(char* path) {
 
 void r_unload_texture(RTexture texture) { }
 
-
 RRenderTexture r_create_render_texture(RVec2 size) {
     printf("[rendtex] Alloc %d x %d\n", size.x, size.y);
 
@@ -173,11 +173,27 @@ RRenderTexture r_create_render_texture(RVec2 size) {
 
 	assert(bundle->target);
 
+	Tex3DS_SubTexture* subtex = malloc(sizeof(Tex3DS_SubTexture));
+	subtex->width = size.x;
+	subtex->height = size.y;
+	subtex->left = 0.0f;
+	subtex->top = 1.0f;
+	subtex->right = 1.0f;
+	subtex->bottom = 0.0f;
+
+	bundle->image.tex = &bundle->texture;
+	bundle->image.subtex = subtex;
+
     return (RRenderTexture) {
         .valid = true,
         .size = size,
         .resource = bundle
     };
+}
+
+void r_draw_render_texture(RRenderTexture texture, float alpha) {
+    CitroRenderTargetBundle* bundle = (CitroRenderTargetBundle*)texture.resource;
+	C2D_DrawImageAt(bundle->image, 0, 0, 0.5f, NULL, 1.0f, 1.0f);
 }
 
 

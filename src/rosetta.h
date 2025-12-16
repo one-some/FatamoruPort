@@ -82,6 +82,9 @@ void r_begin_render_texture_draw(RRenderTexture texture);
 void r_end_render_texture_draw(RRenderTexture texture);
 
 
+// Stupidly narrow because I remembered the project has a scope
+void r_draw_render_texture(RRenderTexture texture, float alpha);
+
 // Don't implement these shortcuts
 void r_draw_texture(RTexture texture, RVec2 position);
 void r_draw_texture_tint(RTexture texture, RVec2 position, RColor tint);

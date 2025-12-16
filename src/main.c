@@ -807,10 +807,7 @@ int main() {
             //DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
 
             if (fore_to_back_fade > 0.0f) {
-				r_draw_texture(
-					back_target.texture,
-					(RVec2) { 0, 0 },
-				);
+				r_draw_render_texture(back_target, 1.0);
                 // DrawTexturePro(
                 //     back_target.texture,
                 //     (Rectangle) { 0.0f, 0.0f, (float)back_target.texture.width, -(float)back_target.texture.height },
@@ -821,6 +818,7 @@ int main() {
                 // );
             }
 
+			r_draw_render_texture(fore_target, 1.0 - fore_to_back_fade);
             // We gotta do this whole song and dance because it's flipped
             // DrawTexturePro(
             //     fore_target.texture,
