@@ -54,6 +54,7 @@ typedef struct {
 
 void r_init(FataState* state);
 void r_shutdown();
+void r_step(FataState* state);
 
 bool r_main_loop(FataState* state);
 

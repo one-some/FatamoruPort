@@ -665,6 +665,8 @@ void frame_work(FataState* state, double delta_ms) {
     }
 
     while (state->node_idx < state->target_nodes->length) {
+        r_step(state);
+
         BaseNode* node = v_get(state->target_nodes, state->node_idx++);
 		print_node(node, "exec");
 
