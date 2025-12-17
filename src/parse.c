@@ -270,7 +270,7 @@ void process_command(MemArena* arena, CommandNode* command, char** src) {
             BaseNode* node = parse_one(arena, src);
             if (!node) continue;
 
-            print_node(node, "parse-macro");
+            // print_node(node, "parse-macro");
 			v_append(nodes, node);
 
             if (node->type != NODE_COMMAND) continue;

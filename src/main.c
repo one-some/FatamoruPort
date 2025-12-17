@@ -740,6 +740,8 @@ int main() {
 	// state.visual.default_font.shadow_color = GetColor(0x2b2b2b);
 	// state.visual.default_font.shadow_enabled = true
 	// TODO: Edge
+    
+    RTexture tex = r_load_texture(find_image("5章_ジゼルの実家"));
 
     while (r_main_loop(&state)) {
         double now = r_time_ms();
@@ -777,18 +779,13 @@ int main() {
         r_begin_frame();
 			r_begin_render_texture_draw(fore_target);
 				// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-
-				// r_clear_frame(R_BLANK);
-				r_clear_frame(R_GREEN);
 				draw_page(&state, &state.visual.fore);
-
-				// EndBlendMode();
 			r_end_render_texture_draw(fore_target);
 
 			// Transition if needed
 			float fore_to_back_fade = 0.0;
 			if (state.transition_max_ms > 0.0f) {
-				//printf("TMax: %f ... TRem: %f\n", state.transition_max_ms, state.transition_remaining_ms);
+				printf("TMax: %f ... TRem: %f\n", state.transition_max_ms, state.transition_remaining_ms);
 				float trans_progress_ms = state.transition_max_ms - state.transition_remaining_ms;
 				fore_to_back_fade = trans_progress_ms / state.transition_max_ms;
 			}
@@ -796,41 +793,18 @@ int main() {
 			if (fore_to_back_fade > 0.0f) {
 				r_begin_render_texture_draw(back_target);
 					// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-
-					r_clear_frame(R_GREEN);
 					draw_page(&state, &state.visual.back);
-
-					// EndBlendMode();
 				r_end_render_texture_draw(back_target);
 			}
 
 			r_clear_frame(R_WHITE);
 
-
             //DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
-
             if (fore_to_back_fade > 0.0f) {
 				r_draw_render_texture(back_target, 1.0);
-                // DrawTexturePro(
-                //     back_target.texture,
-                //     (Rectangle) { 0.0f, 0.0f, (float)back_target.texture.width, -(float)back_target.texture.height },
-                //     render_rect,
-                //     (Vector2) { 0, 0 },
-                //     0.0f,
-                //     R_WHITE
-                // );
             }
 
 			r_draw_render_texture(fore_target, 1.0 - fore_to_back_fade);
-            // We gotta do this whole song and dance because it's flipped
-            // DrawTexturePro(
-            //     fore_target.texture,
-            //     (Rectangle) { 0.0f, 0.0f, (float)fore_target.texture.width, -(float)fore_target.texture.height },
-            //     render_rect,
-            //     (Vector2) { 0, 0 },
-            //     0.0f,
-            //     Fade(R_WHITE, 1.0f - fore_to_back_fade)
-            // );
 
         r_end_frame();
     }

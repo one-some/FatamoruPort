@@ -11,6 +11,11 @@
 
 // u32 __ctru_linear_heap_size = 32 * 1024 * 1024;
 
+#define DISPLAY_TRANSFER_FLAGS \
+	(GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) | \
+	GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | \
+	GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO))
+
 typedef struct {
 	C3D_Tex texture;
 	C3D_RenderTarget* target;
@@ -18,7 +23,6 @@ typedef struct {
 } CitroRenderTargetBundle;
 
 typedef struct {
-    PrintConsole console_top;
     PrintConsole console_bottom;
 	C3D_RenderTarget* top_target;
 } Global3DS;
@@ -26,8 +30,8 @@ typedef struct {
 // This is stupid but whatever
 static Global3DS global_3ds = {0};
 
-
 void debug_print_memory(FataState* state) {
+    return;
     struct mallinfo info = mallinfo();
     u32 total_heap_mem = info.arena; 
     u32 actually_used_mem = info.uordblks; 
@@ -35,7 +39,6 @@ void debug_print_memory(FataState* state) {
     u32 arena_used = state->static_arena.offset;
     u32 linear_free = linearSpaceFree();
 
-    consoleSelect(&global_3ds.console_bottom);
     printf("\x1b[0;0H\e[0;36m");
     printf("=== REAL Memory Stats ===\n");
     printf("Total Heap:  %6ld KB (%.2f MB)\n", total_heap_mem / 1024, total_heap_mem / 1024.0 / 1024.0);
@@ -44,7 +47,6 @@ void debug_print_memory(FataState* state) {
     printf("Area Usage:   %6ld KB (%.2f MB)\n", arena_used / 1024, arena_used / 1024.0 / 1024.0);
     printf("Linear Free:   %6ld KB (%.2f MB)\n", linear_free / 1024, linear_free / 1024.0 / 1024.0);
     printf("\e[0;0m");
-    //consoleSelect(&global_3ds.console_top);
 }
 
 uint64_t next_pow2(uint64_t x) {
@@ -66,13 +68,11 @@ void r_init(FataState* state) {
     bool success = C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
 	assert(success);
 
-    // success = C2D_Init(64);
-	// assert(success);
-
-    // C2D_Prepare();
+    success = C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
+	assert(success);
+    C2D_Prepare();
 
     consoleInit(GFX_BOTTOM, &global_3ds.console_bottom);
-
 
     printf("FataMor2\n"); // Green text
 
@@ -88,20 +88,13 @@ void r_init(FataState* state) {
 		global_3ds.top_target,
 		GFX_TOP,
 		GFX_LEFT,
-		(
-			GX_TRANSFER_FLIP_VERT(0) | \
-			GX_TRANSFER_OUT_TILED(0) | \
-			GX_TRANSFER_RAW_COPY(0) | \
-			GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | \
-			GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | \
-			GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO)
-		)
+        DISPLAY_TRANSFER_FLAGS
 	);
 
     printf("FataMoru\n");
 }
 void r_shutdown() {
-    // C2D_Fini();
+    C2D_Fini();
     C3D_Fini();
     gfxExit();
     romfsExit();
@@ -112,12 +105,16 @@ void r_step(FataState* state) {
 }
 
 bool r_main_loop(FataState* state) {
-	return aptMainLoop();
+    bool out = aptMainLoop();
+
+    hidScanInput();
+
+	return out;
 }
 
 void r_begin_frame() {
 	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-	//C2D_SceneBegin(top);
+	C2D_SceneBegin(global_3ds.top_target);
 }
 void r_end_frame() {
 	C3D_FrameEnd(0);
@@ -128,28 +125,44 @@ void r_clear_frame(RColor color) {
 }
 
 double r_time_ms() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return ((tv.tv_sec) * 1000.0d) + (tv.tv_usec / 1000.0d);
+    return (double)(svcGetSystemTick() / CPU_TICKS_PER_MSEC);
 }
 
 RTexture r_load_texture(char* path) {
-    // TODO: Can we just render an image? Prob would be awesomer
     // TODO: Look at the header and see if it's really this serious
     C2D_SpriteSheet* sheet = malloc(sizeof(C2D_SpriteSheet));
     *sheet = C2D_SpriteSheetLoad(path);
     assert(*sheet);
 
-    C2D_Sprite* sprite = malloc(sizeof(C2D_Sprite));
-    C2D_SpriteFromSheet(sprite, *sheet, 0);
+    C2D_Image* image = malloc(sizeof(C2D_Image));
+    *image = C2D_SpriteSheetGetImage(*sheet, 0);
 
 	return (RTexture) {
 		.valid = true,
-        .resource = sprite
+        .resource = image
 	};
 }
 
 void r_unload_texture(RTexture texture) { }
+
+void r_draw_texture_tint_sample(RTexture texture, RVec2 position, RColor tint, RRect sample_rect) {
+    // TODO: Everything else
+    assert(texture.valid);
+
+    // printf("Drawing Texture %d (%d, %d)\n", ((int)texture.resource & 0xFFF), position.x, position.y);
+
+    C2D_Image* image = (C2D_Image*)texture.resource;
+	C2D_DrawImageAt(
+        *image,
+        position.x,
+        position.y,
+        0.5f,
+        NULL,
+        1.0f,
+        1.0f
+    );
+}
+
 
 RRenderTexture r_create_render_texture(RVec2 size) {
     printf("[rendtex] Alloc %d x %d\n", size.x, size.y);
@@ -193,7 +206,12 @@ RRenderTexture r_create_render_texture(RVec2 size) {
 
 void r_draw_render_texture(RRenderTexture texture, float alpha) {
     CitroRenderTargetBundle* bundle = (CitroRenderTargetBundle*)texture.resource;
-	C2D_DrawImageAt(bundle->image, 0, 0, 0.5f, NULL, 1.0f, 1.0f);
+    assert(bundle);
+
+    C2D_ImageTint tint;
+    C2D_AlphaImageTint(&tint, alpha);
+
+	C2D_DrawImageAt(bundle->image, 0, 0, 0.5f, &tint, 1.0f, 1.0f);
 }
 
 
@@ -201,18 +219,16 @@ void r_begin_render_texture_draw(RRenderTexture texture) {
 	CitroRenderTargetBundle* bundle = (CitroRenderTargetBundle*)texture.resource;
 	assert(bundle);
 
-	C3D_FrameDrawOn(bundle->target);
+	C2D_TargetClear(bundle->target, C2D_Color32(0xFF, 0, 0, 0xFF));
+	C2D_SceneBegin(bundle->target);
 }
 
 void r_end_render_texture_draw(RRenderTexture texture) {
 	CitroRenderTargetBundle* bundle = (CitroRenderTargetBundle*)texture.resource;
 	assert(bundle);
 
-	C3D_FrameDrawOn(global_3ds.top_target);
-	C3D_TexBind(0, &bundle->texture);
+	C2D_SceneBegin(global_3ds.top_target);
 }
-
-void r_draw_texture_tint_sample(RTexture texture, RVec2 position, RColor tint, RRect sample_rect) { }
 
 RFont r_load_font(char* path) { }
 void r_unload_font(RFont font) { }
@@ -230,11 +246,18 @@ void r_stop_sound(RSound track) { }
 void r_unload_sound(RSound track) { }
 
 bool r_get_click() {
-	return false;
+    u32 down = hidKeysDown();
+    if (!(down & KEY_TOUCH)) return false;
+
+    touchPosition pos;
+    hidTouchRead(&pos);
+    printf("T: (%d, %d)\n", pos.px, pos.py);
+
+	return true;
 }
 
 bool r_get_skip_held() {
-	return true;
+	return false;
 }
 
 RVec2 r_get_cursor_pos() {

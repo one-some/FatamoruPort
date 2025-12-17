@@ -106,7 +106,7 @@ void draw_layer(FataState* state, VisualLayer* layer) {
 }
 
 void draw_page(FataState* state, VisualPage* page) {
-	//printf("Drawing Page: '%s'\n", page->name);
+	// printf("Drawing Page: '%s'\n", page->name);
     
     draw_layer(state, &page->base_layer);
     draw_layer(state, &page->layer_zero);
