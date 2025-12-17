@@ -47,7 +47,8 @@ for img_dir in [
 
         if img.size == (800, 600) or img.size[0] > 800:
             img = ImageOps.fit(img, TOP_SCREEN_SIZE, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-            compression = "etc1"
+            if not has_transparency_data:
+                compression = "etc1"
 
         img.save("/tmp/moru.png")
         print(child, img)
