@@ -124,7 +124,7 @@ void r_end_frame() {
 }
 
 void r_clear_frame(RColor color) {
-	//C2D_TargetClear(top, C2D_Color32f(0.2f, 0.2f, 0.2f, 1.0f));
+	C2D_TargetClear(global_3ds.top_target, C2D_Color32(color.r, color.g, color.b, color.a));
 }
 
 double r_time_ms() {

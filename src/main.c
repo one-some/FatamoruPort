@@ -778,7 +778,8 @@ int main() {
 			r_begin_render_texture_draw(fore_target);
 				// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
 
-				r_clear_frame(R_BLANK);
+				// r_clear_frame(R_BLANK);
+				r_clear_frame(R_GREEN);
 				draw_page(&state, &state.visual.fore);
 
 				// EndBlendMode();
@@ -796,12 +797,14 @@ int main() {
 				r_begin_render_texture_draw(back_target);
 					// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
 
-					r_clear_frame(R_BLANK);
+					r_clear_frame(R_GREEN);
 					draw_page(&state, &state.visual.back);
 
 					// EndBlendMode();
 				r_end_render_texture_draw(back_target);
 			}
+
+			r_clear_frame(R_WHITE);
 
 
             //DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
