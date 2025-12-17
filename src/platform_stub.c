@@ -7,6 +7,12 @@
 void r_init(FataState* state) { }
 void r_shutdown() { }
 
+void r_dbgout(char* string, size_t length) {
+	__real_printf("%s", string);
+}
+void r_step(FataState* state) { }
+bool r_jump_hook(FataState* state, char* storage) { }
+
 bool r_main_loop(FataState* state) {
 	return true;
 }
@@ -30,16 +36,18 @@ RTexture r_load_texture(char* path) {
 
 void r_unload_texture(RTexture texture) { }
 
-RTexture r_create_render_texture(RVec2 size) {
-	return (RTexture) {
+RRenderTexture r_create_render_texture(RVec2 size) {
+	return (RRenderTexture) {
 		.valid = true,
 		.size = size
 	};
 }
 
 
-void r_begin_render_texture_draw(RTexture texture) { }
-void r_end_render_texture_draw() { }
+void r_begin_render_texture_draw(RRenderTexture texture) { }
+void r_end_render_texture_draw(RRenderTexture texture) { }
+
+void r_draw_render_texture(RRenderTexture texture, float alpha) { }
 
 void r_draw_texture_tint_sample(RTexture texture, RVec2 position, RColor tint, RRect sample_rect) { }
 

@@ -16,6 +16,7 @@ except FileNotFoundError:
 CONVERT_DIR.mkdir(exist_ok=True)
 
 TEX_3DS = Path(os.environ["DEVKITPRO"]) / "tools/bin/tex3ds"
+MKBCFNT = Path(os.environ["DEVKITPRO"]) / "tools/bin/mkbcfnt"
 
 TOP_SCREEN_SIZE = (400, 240)
 
@@ -38,7 +39,7 @@ for img_dir in [
 
         final_target = ROMFS / img_dir / f"{child.stem}.t3x"
         if final_target.is_file():
-            print("Skip.")
+            # print("Skip.")
             continue
 
         img = Image.open(child)
@@ -79,8 +80,29 @@ for direct_copy in ["bgm", "scenario", "sound"]:
         dirs_exist_ok=True
     )
 
-shutil.copytree(
-    Path("../static"),
-    ROMFS / "static",
-    dirs_exist_ok=True
-)
+# shutil.copytree(
+#     Path("../static"),
+#     ROMFS / "static",
+#     dirs_exist_ok=True
+# )
+(ROMFS/"static").mkdir(exist_ok=True)
+for child in Path("../static").iterdir():
+    if not child.is_file():
+        continue
+
+
+    if child.suffix == ".png":
+        continue
+    elif child.suffix == ".ttf":
+        dest = ROMFS/"static"/(child.stem + ".bcfnt")
+        proc = subprocess.run([
+            MKBCFNT,
+            "-o",
+            dest,
+            child
+        ])
+        assert proc.returncode == 0
+    else:
+        dest = ROMFS/"static"/child.name
+        shutil.copy(child, dest)
+

@@ -32,8 +32,7 @@ typedef struct {
     UIObject base;
 
 	RVec2 position;
-    char* text;
-	RFont font;
+	RTextInstance text_instance;
 } TextObject;
 
 void create_text(FataState* state, char* text);

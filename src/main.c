@@ -1,4 +1,5 @@
 // TODO: Arena allocater
+#include "fs.h"
 #include "mem.h"
 #include <stdio.h>
 #include <string.h>
@@ -18,182 +19,6 @@ const char* useful_scripts[] = {
 	NULL
 };
 
-typedef struct {
-	char* script_path;
-	int node_idx;
-    Vector* target_nodes;
-} ScriptLocation;
-
-typedef struct {
-    char* name;
-    Vector children;
-} Macro;
-
-void load(FataState* state, char* path, char* label_target) {
-	state->stopped = false;
-	state->stopped_until_click = false;
-    state->node_idx = 0;
-    state->target_nodes = &state->nodes;
-
-    printf(
-        "[load] Path: '%s', LabelTarget: '%s'\n",
-        path ? path : "(empty)",
-        label_target ? label_target : "(empty)"
-    );
-
-    bool same_path = !path || (state->script_path && strcmp(state->script_path, path) == 0);
-
-    if (path && !same_path) {
-        printf("[load] Loading from scratch!\n");
-		state->script_path = path;
-
-        state->nodes = v_new();
-
-        // WARNING: When (if) we free later, the ptr will be gone! Save it!!
-        char* src_origin = load_src(path);
-        char* src = src_origin;
-
-        while (*src) {
-            BaseNode* node = parse_one(&state->static_arena, &src);
-            if (!node) continue;
-
-            v_append(&state->nodes, node);
-        }
-
-        free(src_origin);
-	}
-
-	for (int i=0; i<state->nodes.length;i++) {
-		BaseNode* node = v_get(&state->nodes, i);
-
-		if (node->type == NODE_COMMAND) {
-			CommandNode* cmd = (CommandNode*)node;
-
-			if (cmd->data_type == CMD_DATA_MACRO && !same_path) {
-                char* name = get_arg_str(&cmd->args, "name");
-                assert(name);
-
-                Macro* macro = NULL;
-
-                for (int j=0; j<state->macros.length; j++) {
-                    Macro* macro_candidate = v_get(&state->macros, j);
-                    if (strcmp(name, macro_candidate->name) != 0) continue;
-
-                    macro = macro_candidate;
-                    break;
-                }
-
-                if (macro) {
-                    // Do not make duplicate macros!
-                    continue;
-                }
-
-                macro = malloc(sizeof(Macro));
-                macro->name = name;
-                macro->children = *(Vector*)cmd->data;
-
-                v_append(&state->macros, macro);
-			}
-		}
-
-		if (label_target && node->type == NODE_LABEL) {
-
-			// Set node_idx to this label right off the bat
-			LabelNode* label = (LabelNode*)node;
-
-			if (strcmp(label->label_id, label_target) != 0) continue;
-
-			state->node_idx = i;
-			label_target = NULL;
-		}
-	}
-
-	if (label_target) {
-		printf("[err] Couldn't find label %s\n", label_target);
-		assert(!label_target);
-	}
-}
-
-void push_to_callstack(FataState* state) {
-    ScriptLocation* where = malloc(sizeof(ScriptLocation));
-    where->script_path = state->script_path;
-    where->node_idx = state->node_idx;
-    where->target_nodes = state->target_nodes;
-    v_append(&state->call_stack, where);
-}
-
-void return_from_callstack(FataState* state) {
-    assert(state->call_stack.length);
-
-    ScriptLocation* where = v_pop(&state->call_stack, state->call_stack.length - 1);
-    assert(where);
-
-    load(state, where->script_path, NULL);
-    state->node_idx = where->node_idx;
-
-    // This is gonna bite me in the butt later
-    state->target_nodes = where->target_nodes;
-}
-
-char* find_file(char* storage, const char* patterns[]) {
-    for (int i=0; patterns[i]; i++) {
-
-        char path_buffer[256];
-        snprintf(path_buffer, sizeof(path_buffer), patterns[i], storage);
-
-        FILE *fp = fopen(path_buffer, "r");
-        if (fp) {
-            fclose(fp);
-            return strdup(path_buffer);
-        }
-    }
-
-	printf("[file] Couldn't find '%s' anywhere:\n", storage);
-    for (int i=0; patterns[i]; i++) {
-		printf("- %s\n", patterns[i]);
-	}
-
-    assert(false);
-	return NULL;
-}
-
-char* find_bgm(char* storage) {
-	const char* patterns[] = { DATA_PATH("bgm/%s.ogg"), NULL };
-	return find_file(storage, patterns);
-}
-
-char* find_sfx(char* storage) {
-	const char* patterns[] = { DATA_PATH("sound/%s.ogg"), NULL };
-	return find_file(storage, patterns);
-}
-
-char* find_image(char* storage) {
-	const char* patterns[] = {
-		// HACK: Include port paths. Also include them first so it's faster
-		DATA_PATH("bgimage/%s.t3x"),
-		DATA_PATH("image/%s.t3x"),
-		DATA_PATH("fgimage/%s.t3x"),
-
-		DATA_PATH("bgimage/%s.png"),
-		DATA_PATH("bgimage/%s.jpg"),
-		DATA_PATH("image/%s.png"),
-		DATA_PATH("image/%s.jpg"),
-		DATA_PATH("fgimage/%s.png"),
-		DATA_PATH("fgimage/%s.jpg"),
-		NULL
-	};
-	return find_file(storage, patterns);
-}
-
-char* find_script(char* storage) {
-	const char* patterns[] = {
-		DATA_PATH("scenario/%s"),
-		DATA_PATH("others/%s"),
-		DATA_PATH("system/%s"),
-		NULL
-	};
-	return find_file(storage, patterns);
-}
 
 bool evaluate_expression(FataState* state, char* expression) {
 	printf("Evaluate: '%s'\n", expression);
@@ -286,15 +111,21 @@ bool run_command(CommandNode* command, FataState* state) {
 
     } else if (strcmp("jump", cmd) == 0) {
         char* storage = get_arg_str(args, "storage");
-        char* path = storage ? find_script(storage) : NULL;
 
-        char* target = get_arg_str(args, "target");
-        if (target) {
-            assert(target[0] == '*');
-            target++;
-        }
+		bool handled = r_jump_hook(state, storage);
 
-        load(state, path, target);
+		if (!handled) {
+			char* path = storage ? find_script(storage) : NULL;
+
+			char* target = get_arg_str(args, "target");
+			if (target) {
+				assert(target[0] == '*');
+				target++;
+			}
+
+			jump_to_point(state, path, target);
+		}
+
         return true;
     } else if (strcmp("playbgm", cmd) == 0) {
         char* storage = get_arg_str(args, "storage");
@@ -432,7 +263,7 @@ bool run_command(CommandNode* command, FataState* state) {
 
         push_to_callstack(state);
 
-        load(state, path, target);
+        jump_to_point(state, path, target);
 		return true;
     } else if (strcmp("return", cmd) == 0) {
         return_from_callstack(state);
@@ -692,6 +523,7 @@ void frame_work(FataState* state, double delta_ms) {
 	exit(0);
 }
 
+#include <citro2d.h>
 int main() {
 	//printf("FataMoru!! ^-^\n");
     //
@@ -723,15 +555,10 @@ int main() {
     RRenderTexture fore_target = r_create_render_texture(state.window_size);
     RRenderTexture back_target = r_create_render_texture(state.window_size);
 
-    load(&state, PATH("static/bootstrap.ks"), NULL);
+    jump_to_point(&state, PATH("static/bootstrap.ks"), NULL);
 
-    // while (r_main_loop(&state)) {
-    //     r_begin_frame();
-    //     r_end_frame();
-    // }
-
-	// Font_DroidSerif = r_load_font("./static/DroidSerif.ttf");
-	// Font_LibreBaskerville = r_load_font("./static/LibreBaskerville.ttf");
+	Font_DroidSerif = r_load_font(find_font("DroidSerif"));
+	Font_LibreBaskerville = r_load_font(find_font("LibreBaskerville"));
 	Font_LibreBaskerville.size = 18;
 	Font_LibreBaskerville.spacing = 8;
 
@@ -742,6 +569,8 @@ int main() {
 	// TODO: Edge
     
     RTexture tex = r_load_texture(find_image("5章_ジゼルの実家"));
+
+	r_post_init(&state);
 
     while (r_main_loop(&state)) {
         double now = r_time_ms();
@@ -776,7 +605,7 @@ int main() {
 
         frame_work(&state, delta_ms);
 
-        r_begin_frame();
+        r_begin_frame(&state);
 			r_begin_render_texture_draw(fore_target);
 				// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
 				draw_page(&state, &state.visual.fore);

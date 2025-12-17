@@ -1,5 +1,6 @@
 #!/bin/sh
 gcc -o main \
+	-Wl,--wrap=printf \
     src/*.c \
     -g -O0 \
     -lraylib \

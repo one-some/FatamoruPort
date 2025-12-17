@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include "string.h"
 
 #include "parse.h"
 
@@ -335,31 +336,35 @@ BaseNode* parse_one(MemArena* arena, char** src) {
 }
 
 void print_node(BaseNode* base_node, const char* context) {
-    printf("[%s] ", context);
+	StringBuilder sb = sb_make(256);
+	sb_addf(&sb, "[%s] ", context);
 
 	if (base_node->type == NODE_LABEL) {
 		LabelNode* node = (LabelNode*)base_node;
-		printf("[lbl] LabelID: '%s'", node->label_id);
-		if (node->label_title) printf(" Title: '%s'", node->label_title);
-		printf("\n");
+		sb_addf(&sb, "[lbl] ID: '%s'", node->label_id);
+
+		if (node->label_title) {
+			sb_addf(&sb, ", Title: '%s'", node->label_title);
+		}
 	} else if (base_node->type == NODE_COMMAND) {
 		CommandNode* node = (CommandNode*)base_node;
-		printf("[cmd]");
+		sb_add(&sb, "[cmd]");
 
         for (int i=0; i<node->args.length; i++) {
             CommandArg* arg = v_get(&node->args, i);
-            //printf(" (%d)%s", i, arg->key);
-            printf(" %s", arg->key);
+			sb_addf(&sb, " %s", arg->key);
             if (arg->value && *arg->value) {
-                printf(":%s", arg->value);
+				sb_addf(&sb, ":%s", arg->value);
             }
         }
 
-        printf("\n");
 	} else if (base_node->type == NODE_TEXT) {
 	    TextNode* node = (TextNode*)base_node;
-		printf("[txt] '%s'", node->text);
+		sb_addf(&sb, "[txt] '%s'", node->text);
     }
+
+	printf("%s\n", sb.base);
+	sb_free(sb);
 }
 
 char* get_arg_str(Vector* args, char* key) {

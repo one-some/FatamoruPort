@@ -1,35 +1,37 @@
 #pragma once
 
+extern int __real_printf(const char* format, ...);
+
+#include <stdio.h>
 
 #ifndef PLATFORM_3DS
     #include <assert.h>
-	#define PATH(path) path
-	#define DATA_PATH(path) "cache/" path
 #else
     #include <3ds.h>
-    #include <stdio.h>
     
     #undef assert 
 
     #define assert(_Expression) (void)( (!!(_Expression)) || (_3ds_assert(#_Expression, __FILE__, __LINE__), 0) )
 
-    // Helper function to keep the macro clean
     __attribute__((unused)) static void _3ds_assert(const char* expr, const char* file, int line) {
-        // \x1b[31m sets color to Red
-        printf("\x1b[31m[ASSERT FAILED]\n");
-        printf("File: %s\nLine: %d\n", file, line);
-        printf("Expr: %s\x1b[0m\n", expr);
+
+        printf("\x1b[31m\n");
+		printf("\n\n");
+		// There is some weirdness going on with svcOutputDebugString here... not everything is printed..
+		printf("! ASSERTION FAILED !\n");
+        printf("[assert] File: %s\n", file);
+        printf("[assert] Line: %d\n", line);
+        printf("[assert] Expr: %s", expr);
+		printf("\x1b[0m");
         
-        while (1) {
+        while (true) {
             gspWaitForVBlank(); 
         }
     }
-
-	#define PATH(path) "romfs:/" path
-	#define DATA_PATH(path) "romfs:/" path
 #endif
 
 
+#include <stddef.h>
 #include "types.h"
 
 typedef struct FataState FataState;
@@ -58,13 +60,22 @@ typedef struct {
 	RColor color;
 } RFont;
 
+typedef struct {
+	void* resource;
+	RFont font;
+} RTextInstance;
+
 void r_init(FataState* state);
+void r_post_init(FataState* state);
 void r_shutdown();
+void r_dbgout(char* string, size_t length);
 void r_step(FataState* state);
+
+bool r_jump_hook(FataState* state, char* storage);
 
 bool r_main_loop(FataState* state);
 
-void r_begin_frame();
+void r_begin_frame(FataState* state);
 void r_end_frame();
 
 void r_clear_frame(RColor color);
@@ -95,7 +106,10 @@ void r_draw_texture_tint_sample(RTexture texture, RVec2 position, RColor tint, R
 // SetTextureFilter(Font_LibreBaskerville.texture, TEXTURE_FILTER_BILINEAR);
 RFont r_load_font(char* path);
 void r_unload_font(RFont font);
-void r_draw_text(RFont font, char* text, RVec2 position);
+
+RTextInstance r_create_text(char* string, RFont font);
+void r_draw_text(RTextInstance text_instance, RVec2 position);
+
 RVec2 r_measure_text(RFont font, char* text);
 
 RSound r_load_sound(char* path);

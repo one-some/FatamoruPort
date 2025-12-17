@@ -1,31 +1,18 @@
 #ifdef PLATFORM_3DS
 
 #include "rosetta.h"
-#include "state.h"
+#include "fs.h"
+#include "ui.h"
 #include <sys/time.h>
 #include <stddef.h>
 
 #include <malloc.h>
 #include <citro2d.h>
 #include <3ds.h>
+#include "state.h"
+#include "platform_3ds.h"
 
 // u32 __ctru_linear_heap_size = 32 * 1024 * 1024;
-
-#define DISPLAY_TRANSFER_FLAGS \
-	(GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) | \
-	GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | \
-	GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO))
-
-typedef struct {
-	C3D_Tex texture;
-	C3D_RenderTarget* target;
-	C2D_Image image;
-} CitroRenderTargetBundle;
-
-typedef struct {
-    PrintConsole console_bottom;
-	C3D_RenderTarget* top_target;
-} Global3DS;
 
 // This is stupid but whatever
 static Global3DS global_3ds = {0};
@@ -56,6 +43,10 @@ uint64_t next_pow2(uint64_t x) {
 	return p;
 }
 
+void r_post_init(FataState* state) {
+	init_layer(state, &global_3ds.bottom_layer, "CTR_BOTTOM_LAYER");
+}
+
 void r_init(FataState* state) {
 	state->window_size = (RVec2) {
 		next_pow2(400),
@@ -72,24 +63,13 @@ void r_init(FataState* state) {
 	assert(success);
     C2D_Prepare();
 
-    consoleInit(GFX_BOTTOM, &global_3ds.console_bottom);
+    printf("FataMor2\n");
+	global_3ds.special_state = SPECIAL_STATE_NONE;
 
-    printf("FataMor2\n"); // Green text
-
-	global_3ds.top_target = C3D_RenderTargetCreate(
-		240,
-		400,
-		GPU_RB_RGBA8,
-		GPU_RB_DEPTH24_STENCIL8
-	);
+	global_3ds.top_target = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 	assert(global_3ds.top_target);
-
-	C3D_RenderTargetSetOutput(
-		global_3ds.top_target,
-		GFX_TOP,
-		GFX_LEFT,
-        DISPLAY_TRANSFER_FLAGS
-	);
+	global_3ds.bottom_target = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+	assert(global_3ds.bottom_target);
 
     printf("FataMoru\n");
 }
@@ -98,6 +78,13 @@ void r_shutdown() {
     C3D_Fini();
     gfxExit();
     romfsExit();
+}
+
+void r_dbgout(char* string, size_t length) {
+	__real_printf("%s", string);
+
+	if (string[length - 1] == '\n') string[length - 1] = '\0';
+	svcOutputDebugString(string, strlen(string));
 }
 
 void r_step(FataState* state) {
@@ -112,9 +99,15 @@ bool r_main_loop(FataState* state) {
 	return out;
 }
 
-void r_begin_frame() {
+void r_begin_frame(FataState* state) {
 	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+	if (global_3ds.special_state == SPECIAL_STATE_TITLE) {
+		title_frame(state);
+	}
+
 	C2D_SceneBegin(global_3ds.top_target);
+	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
 }
 void r_end_frame() {
 	C3D_FrameEnd(0);
@@ -167,7 +160,7 @@ void r_draw_texture_tint_sample(RTexture texture, RVec2 position, RColor tint, R
 RRenderTexture r_create_render_texture(RVec2 size) {
     printf("[rendtex] Alloc %d x %d\n", size.x, size.y);
 
-    CitroRenderTargetBundle* bundle = calloc(1, sizeof(CitroRenderTargetBundle));
+    CtrRenderTargetBundle* bundle = calloc(1, sizeof(CtrRenderTargetBundle));
 	assert(bundle);
 
     // 2. Try VRAM Allocation
@@ -205,7 +198,7 @@ RRenderTexture r_create_render_texture(RVec2 size) {
 }
 
 void r_draw_render_texture(RRenderTexture texture, float alpha) {
-    CitroRenderTargetBundle* bundle = (CitroRenderTargetBundle*)texture.resource;
+    CtrRenderTargetBundle* bundle = (CtrRenderTargetBundle*)texture.resource;
     assert(bundle);
 
     C2D_ImageTint tint;
@@ -216,24 +209,77 @@ void r_draw_render_texture(RRenderTexture texture, float alpha) {
 
 
 void r_begin_render_texture_draw(RRenderTexture texture) {
-	CitroRenderTargetBundle* bundle = (CitroRenderTargetBundle*)texture.resource;
+	CtrRenderTargetBundle* bundle = (CtrRenderTargetBundle*)texture.resource;
 	assert(bundle);
 
 	C2D_TargetClear(bundle->target, C2D_Color32(0xFF, 0, 0, 0xFF));
 	C2D_SceneBegin(bundle->target);
+	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
 }
 
 void r_end_render_texture_draw(RRenderTexture texture) {
-	CitroRenderTargetBundle* bundle = (CitroRenderTargetBundle*)texture.resource;
+	CtrRenderTargetBundle* bundle = (CtrRenderTargetBundle*)texture.resource;
 	assert(bundle);
 
 	C2D_SceneBegin(global_3ds.top_target);
+	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
 }
 
-RFont r_load_font(char* path) { }
+RFont r_load_font(char* path) {
+	printf("[dbg] Loading font '%s'\n", path);
+
+	// Actually a ptr....
+	C2D_Font font = C2D_FontLoad(path);
+	assert(font);
+
+	return (RFont) {
+		.resource = font
+	};
+}
 void r_unload_font(RFont font) { }
-void r_draw_text(RFont font, char* text, RVec2 position) { }
-RVec2 r_measure_text(RFont font, char* text) { }
+
+RTextInstance r_create_text(char* string, RFont font) {
+	CtrTextBundle* bundle = malloc(sizeof(CtrTextBundle));
+	assert(bundle);
+
+	bundle->text_buf = C2D_TextBufNew(strlen(string));
+	assert(bundle->text_buf);
+
+	C2D_Font c_font = (C2D_Font)font.resource;
+	assert(c_font);
+
+	//C2D_TextParse(&bundle->text, bundle->text_buf, string);
+	C2D_TextFontParse(&bundle->text, c_font, bundle->text_buf, string);
+	C2D_TextOptimize(&bundle->text);
+
+	return (RTextInstance) {
+		.resource = bundle
+	};
+}
+
+void r_draw_text(RTextInstance text_instance, RVec2 position) {
+	CtrTextBundle* bundle = (CtrTextBundle*)text_instance.resource;
+	assert(bundle);
+
+	assert(&bundle->text);
+	printf("Text at (%d, %d)\n", position.x, position.y);
+
+	float size = 0.8;
+	C2D_DrawText(
+		&bundle->text,
+		C2D_WithColor,
+		position.x,
+		position.y,
+		0.2f,
+		size,
+		size,
+		C2D_Color32f(1.0f, 1.0f, 1.0f, 1.0f)
+	);
+}
+
+RVec2 r_measure_text(RFont font, char* text) {
+	return (RVec2) { 0, 0 };
+}
 
 RSound r_load_sound(char* path) {
 	return (RSound) {
@@ -265,5 +311,56 @@ RVec2 r_get_cursor_pos() {
 }
 
 void r_set_window_title(char* title) { }
+
+void title_hook(FataState* state) {
+	printf("HELLOTITLEWORLD");
+
+	assert(!global_3ds.bottom_layer.texture.valid);
+	global_3ds.special_state = SPECIAL_STATE_TITLE;
+
+	state->visual.fore.base_layer.texture = r_load_texture(DATA_PATH("bgimage/オープニング.t3x"));
+
+
+	// Fata BG
+	VisualLayer* old_layer = state->visual.active_layer;
+
+	state->visual.active_layer = &global_3ds.bottom_layer;
+	global_3ds.bottom_layer.texture = r_load_texture(DATA_PATH("bgimage/massageback.t3x"));
+	create_text(state, "An evil world..?");
+
+
+	state->visual.active_layer = old_layer;
+
+	// if (false) {
+	// 	global_3ds.special_state = SPECIAL_STATE_NONE;
+	// 	jump_to_point(state, DATA_PATH("scenario/scenario.ks"), "start");
+	// }
+}
+
+void title_frame(FataState* state) {
+	assert(global_3ds.bottom_layer.texture.valid);
+
+	C2D_SceneBegin(global_3ds.bottom_target);
+	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
+
+	//C2D_Fade(C2D_Color32f(0.0f, 0.0f, 0.0f, 0.7f));
+	draw_layer(state, &global_3ds.bottom_layer);
+	//C2D_Fade(0);
+
+	// RTextInstance ti = r_create_text("L0L FROM Fata Morgana", (RFont) { 0 });
+	// r_draw_text(ti, (RVec2) { 0, 0 });
+}
+
+bool r_jump_hook(FataState* state, char* storage) {
+	if (strcmp(storage, "title.ks") == 0) {
+		// We have a special menu for the 3ds!
+		state->stopped = true;
+		title_hook(state);
+
+		return true;
+	}
+
+	return false;
+}
 
 #endif

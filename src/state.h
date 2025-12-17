@@ -36,4 +36,17 @@ typedef struct FataState {
 	RVec2 canvas_size;
 } FataState;
 
-void load(FataState* state, char* path, char* label_target);
+typedef struct {
+	char* script_path;
+	int node_idx;
+    Vector* target_nodes;
+} ScriptLocation;
+
+typedef struct {
+    char* name;
+    Vector children;
+} Macro;
+
+void jump_to_point(FataState* state, char* path, char* label_target);
+void push_to_callstack(FataState* state);
+void return_from_callstack(FataState* state);

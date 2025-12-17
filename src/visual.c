@@ -88,15 +88,14 @@ void draw_layer(FataState* state, VisualLayer* layer) {
             // DrawRectangleLinesEx(rect, 1.0f, RED);
 
             if (mouse_inside && r_get_click()) {
-                load(state, NULL, button->target);
+                jump_to_point(state, NULL, button->target);
             }
         } else if (obj->type == VO_TEXT) {
             TextObject* text_obj = (TextObject*)obj;
 			RFont* font = &state->visual.active_layer->font;
 
 			r_draw_text(
-				text_obj->font,
-				text_obj->text,
+				text_obj->text_instance,
 				text_obj->position
 			);
         } else {

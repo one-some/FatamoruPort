@@ -18,10 +18,10 @@ rm -f 3ds/out/*
 mkdir -p 3ds/romfs
 
 echo "Compiling C..."
-"$CC" $CFLAGS $INCLUDES -c src/*.c -D PLATFORM_3DS
+"$CC" $CFLAGS $INCLUDES -c src/*.c -D PLATFORM_3DS -fno-builtin-printf
 
 echo "Linking..."
-"$CC" -specs=3dsx.specs $ARCH *.o $LIBPATHS $LIBS -o 3ds/out/output.elf
+"$CC" -specs=3dsx.specs -Wl,--wrap=printf $ARCH *.o $LIBPATHS $LIBS -o 3ds/out/output.elf
 
 ICON="$DEVKITPRO/libctru/default_icon.png"
 "$DEVKITPRO/tools/bin/smdhtool" --create "The House in Fata Morgana" "Interpreter" "Claire" $ICON 3ds/out/output.smdh
