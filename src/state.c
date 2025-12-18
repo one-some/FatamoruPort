@@ -5,10 +5,11 @@
 #include <string.h>
 
 void jump_to_point(FataState* state, char* script_name, char* label_target) {
-	char* redirect skip = r_jump_hook(state, script_name);
+	char* redirect = r_jump_hook(state, script_name);
 
 	if (redirect) {
 		script_name = redirect;
+		label_target = NULL;
 	}
 
 	char* path = script_name ? find_script(script_name) : NULL;

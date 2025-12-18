@@ -21,6 +21,14 @@ typedef enum {
 	SPECIAL_STATE_TITLE
 } SpecialState;
 
+typedef enum {
+	VisualPage top_fore;
+	VisualPage top_back;
+
+	VisualPage bottom_back;
+	VisualPage bottom_fore;
+} PageSwapper;
+
 typedef struct {
 	C3D_RenderTarget* top_target;
 	C3D_RenderTarget* bottom_target;

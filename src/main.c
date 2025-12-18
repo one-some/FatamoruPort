@@ -53,7 +53,6 @@ bool run_command(CommandNode* command, FataState* state) {
         state->wait_timer_ms = (float)time_ms;
         return true;
     } else if (strcmp("image", cmd) == 0) {
-        // image storage="blacksozai" layer="base" page="fore"
         char* storage = get_arg_str(args, "storage");
         assert(storage);
 
