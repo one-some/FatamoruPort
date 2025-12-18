@@ -22,6 +22,22 @@ TOP_SCREEN_SIZE = (400, 240)
 
 # We need to automatically (mostly) convert the large images in FataMoru into sprites the 3ds can manage
 
+def convert(source, dest, compression) -> bool:
+    proc = subprocess.run([
+        TEX_3DS,
+        "--atlas",
+        "-f",
+        compression,
+        "-z",
+        "auto",
+        "-o",
+        dest,
+        source,
+    ])
+
+    return proc.returncode == 0
+
+
 for img_dir in [
     "bgimage",
     "image"
@@ -54,23 +70,9 @@ for img_dir in [
         img.save("/tmp/moru.png")
         print(child, img)
 
-        proc = subprocess.run([
-            TEX_3DS,
-            "--atlas",
-            "-f",
-            compression,
-            "-z",
-            "auto",
-            # "-H",
-            # SRC / "bgimage" / f"{child.stem}.h",
-            "-o",
-            final_target,
-            "/tmp/moru.png"
-            # BG_DEST / child.name
-        ])
+        if not convert("/tmp/moru.png", final_target, compression):
+            print("AYHHHHH!!!!")
 
-        if proc.returncode != 0:
-            print("AHHHHHHHH!!")
         # assert proc.returncode == 0
 
 for direct_copy in ["bgm", "scenario", "sound"]:
@@ -92,9 +94,9 @@ for child in Path("../static").iterdir():
 
 
     if child.suffix == ".png":
-        continue
+        assert convert(child, ROMFS/"static"/f"{child.stem}.t3x", "rgba8888")
     elif child.suffix == ".ttf":
-        dest = ROMFS/"static"/(child.stem + ".bcfnt")
+        dest = ROMFS/"static"/f"{child.stem}.bcfnt"
         proc = subprocess.run([
             MKBCFNT,
             "-o",

@@ -163,13 +163,9 @@ RRenderTexture r_create_render_texture(RVec2 size) {
     CtrRenderTargetBundle* bundle = calloc(1, sizeof(CtrRenderTargetBundle));
 	assert(bundle);
 
-    // 2. Try VRAM Allocation
-	//C3D_Tex tex;
     bool vram_success = C3D_TexInitVRAM(&bundle->texture, size.x, size.y, GPU_RGBA8);
 	assert(vram_success);
-	printf("Why are we kosher..?\n");
 
-    // 3. Try Target Creation
     bundle->target = C3D_RenderTargetCreateFromTex(
         &bundle->texture,
         GPU_TEXFACE_2D,
@@ -262,7 +258,6 @@ void r_draw_text(RTextInstance text_instance, RVec2 position) {
 	assert(bundle);
 
 	assert(&bundle->text);
-	printf("Text at (%d, %d)\n", position.x, position.y);
 
 	float size = 0.8;
 	C2D_DrawText(
@@ -326,7 +321,13 @@ void title_hook(FataState* state) {
 
 	state->visual.active_layer = &global_3ds.bottom_layer;
 	global_3ds.bottom_layer.texture = r_load_texture(DATA_PATH("bgimage/massageback.t3x"));
-	create_text(state, "An evil world..?");
+    global_3ds.overlay = r_load_texture(PATH("static/mockup.t3x"));
+
+    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 50, 50 };
+	// create_text(state, "Enter the Mansion");
+	// create_text(state, "Inspect Your Memories");
+    // create_text(state, "Config");
+    // create_text(state, "Extras");
 
 
 	state->visual.active_layer = old_layer;
@@ -343,9 +344,12 @@ void title_frame(FataState* state) {
 	C2D_SceneBegin(global_3ds.bottom_target);
 	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
 
-	//C2D_Fade(C2D_Color32f(0.0f, 0.0f, 0.0f, 0.7f));
-	draw_layer(state, &global_3ds.bottom_layer);
-	//C2D_Fade(0);
+	C2D_Fade(C2D_Color32f(0.0f, 0.0f, 0.0f, 0.5f));
+	draw_layer(state, &global_3ds.bottom_layer, DRAW_TEXTURES);
+	C2D_Fade(0);
+	draw_layer(state, &global_3ds.bottom_layer, DRAW_CHILDREN);
+
+    r_draw_texture(global_3ds.overlay, (RVec2) { 0, 0 });
 
 	// RTextInstance ti = r_create_text("L0L FROM Fata Morgana", (RFont) { 0 });
 	// r_draw_text(ti, (RVec2) { 0, 0 });

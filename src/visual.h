@@ -6,6 +6,14 @@
 
 typedef struct FataState FataState;
 
+typedef enum {
+    DRAW_TEXTURES = 1,
+    DRAW_CHILDREN = 2,
+} DrawFlag;
+
+#define DRAW_ALL (DRAW_TEXTURES | DRAW_CHILDREN)
+
+
 typedef struct {
 	int left;
 	int top;
@@ -52,7 +60,7 @@ void init_page(FataState* state, VisualPage* page);
 void copy_layer(VisualLayer* dest, VisualLayer* src);
 void copy_page(VisualPage* dest, VisualPage* src);
 
-void draw_layer(FataState* state, VisualLayer* layer);
+void draw_layer(FataState* state, VisualLayer* layer, int flags);
 void draw_page(FataState* state, VisualPage* page);
 
 void unload_page_textures(VisualPage* page);

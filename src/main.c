@@ -523,7 +523,6 @@ void frame_work(FataState* state, double delta_ms) {
 	exit(0);
 }
 
-#include <citro2d.h>
 int main() {
 	//printf("FataMoru!! ^-^\n");
     //

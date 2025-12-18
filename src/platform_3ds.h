@@ -26,6 +26,8 @@ typedef struct {
 	C3D_RenderTarget* bottom_target;
 	SpecialState special_state;
 	VisualLayer bottom_layer;
+
+    RTexture overlay;
 } Global3DS;
 
 void debug_print_memory(FataState* state);

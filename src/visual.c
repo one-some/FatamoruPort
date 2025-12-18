@@ -51,69 +51,71 @@ void copy_page(VisualPage* dest, VisualPage* src) {
     copy_layer(&dest->message_layer_one, &src->message_layer_one);
 }
 
-void draw_layer(FataState* state, VisualLayer* layer) {
-    if (layer->texture.valid) {
+void draw_layer(FataState* state, VisualLayer* layer, int flags) {
+    if (flags & DRAW_TEXTURES && layer->texture.valid) {
 		//printf("Drawing a texture on '%s'\n", layer->name);
 		r_draw_texture(layer->texture, layer->texture_offset);
 	}
 
-	for (int i=0; i<layer->children.length;i++) {
-        UIObject* obj = v_get(&layer->children, i);
-        assert(obj);
+    if (flags & DRAW_CHILDREN) {
+        for (int i=0; i<layer->children.length;i++) {
+            UIObject* obj = v_get(&layer->children, i);
+            assert(obj);
 
-        if (obj->type == VO_BUTTON) {
-            ButtonObject* button = (ButtonObject*)obj;
+            if (obj->type == VO_BUTTON) {
+                ButtonObject* button = (ButtonObject*)obj;
 
-            RRect rect = {
-                .x = button->position.x,
-                .y = button->position.y,
-                .width = button->texture.size.x,
-                .height = button->texture.size.y
-            };
+                RRect rect = {
+                    .x = button->position.x,
+                    .y = button->position.y,
+                    .width = button->texture.size.x,
+                    .height = button->texture.size.y
+                };
 
-			RVec2 mouse_pos = r_get_cursor_pos();
-            bool mouse_inside = rect_contains(rect, mouse_pos);
+                RVec2 mouse_pos = r_get_cursor_pos();
+                bool mouse_inside = rect_contains(rect, mouse_pos);
 
-            if (!button->hovered && mouse_inside) {
-                r_play_sound(button->enter_se);
+                if (!button->hovered && mouse_inside) {
+                    r_play_sound(button->enter_se);
+                }
+                button->hovered = mouse_inside;
+
+                // Normal, pressed, hovered
+                int offset_width = button->texture.size.x / 3;
+                int x_offset = mouse_inside ? offset_width * 2 : 0;
+
+                r_draw_texture(button->texture, button->position);
+
+                // DrawRectangleLinesEx(rect, 1.0f, RED);
+
+                if (mouse_inside && r_get_click()) {
+                    jump_to_point(state, NULL, button->target);
+                }
+            } else if (obj->type == VO_TEXT) {
+                TextObject* text_obj = (TextObject*)obj;
+                RFont* font = &state->visual.active_layer->font;
+
+                r_draw_text(
+                    text_obj->text_instance,
+                    text_obj->position
+                );
+            } else {
+                assert(false);
             }
-            button->hovered = mouse_inside;
-
-			// Normal, pressed, hovered
-			int offset_width = button->texture.size.x / 3;
-			int x_offset = mouse_inside ? offset_width * 2 : 0;
-
-            r_draw_texture(button->texture, button->position);
-
-            // DrawRectangleLinesEx(rect, 1.0f, RED);
-
-            if (mouse_inside && r_get_click()) {
-                jump_to_point(state, NULL, button->target);
-            }
-        } else if (obj->type == VO_TEXT) {
-            TextObject* text_obj = (TextObject*)obj;
-			RFont* font = &state->visual.active_layer->font;
-
-			r_draw_text(
-				text_obj->text_instance,
-				text_obj->position
-			);
-        } else {
-            assert(false);
         }
-	}
+    }
 }
 
 void draw_page(FataState* state, VisualPage* page) {
 	// printf("Drawing Page: '%s'\n", page->name);
     
-    draw_layer(state, &page->base_layer);
-    draw_layer(state, &page->layer_zero);
-    draw_layer(state, &page->layer_one);
-    draw_layer(state, &page->layer_two);
+    draw_layer(state, &page->base_layer, DRAW_ALL);
+    draw_layer(state, &page->layer_zero, DRAW_ALL);
+    draw_layer(state, &page->layer_one, DRAW_ALL);
+    draw_layer(state, &page->layer_two, DRAW_ALL);
 
-    draw_layer(state, &page->message_layer_zero);
-    draw_layer(state, &page->message_layer_one);
+    draw_layer(state, &page->message_layer_zero, DRAW_ALL);
+    draw_layer(state, &page->message_layer_one, DRAW_ALL);
 }
 
 
