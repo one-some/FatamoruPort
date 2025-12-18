@@ -44,14 +44,17 @@ uint64_t next_pow2(uint64_t x) {
 }
 
 void r_post_init(FataState* state) {
-	init_layer(state, &global_3ds.bottom_layer, "CTR_BOTTOM_LAYER");
+	// init_layer(state, &global_3ds.bottom_layer, "CTR_BOTTOM_LAYER");
 }
 
 void r_init(FataState* state) {
-	state->window_size = (RVec2) {
+	// FIXME: What?? For tex only!!!
+	state->visual.size = (RVec2) {
 		next_pow2(400),
 		next_pow2(240)
 	};
+
+	init_screen(state, &global_3ds.dual.other, (RVec2) { 320, 240 });
 
     romfsInit();
     gfxInitDefault();
@@ -100,11 +103,11 @@ bool r_main_loop(FataState* state) {
 }
 
 void r_begin_frame(FataState* state) {
-	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-
-	if (global_3ds.special_state == SPECIAL_STATE_TITLE) {
-		title_frame(state);
+	if (global_3ds.dual.bottom_active) {
+		swap_screens(state);
 	}
+
+	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 
 	C2D_SceneBegin(global_3ds.top_target);
 	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
@@ -328,7 +331,7 @@ void r_set_window_title(char* title) { }
 void title_hook(FataState* state) {
 	printf("HELLOTITLEWORLD");
 
-	assert(!global_3ds.bottom_layer.texture.valid);
+	// assert(!global_3ds.bottom_layer.texture.valid);
 	global_3ds.special_state = SPECIAL_STATE_TITLE;
 
 	state->visual.fore.base_layer.texture = r_load_texture(DATA_PATH("bgimage/オープニング.t3x"));
@@ -337,11 +340,11 @@ void title_hook(FataState* state) {
 	// Fata BG
 	VisualLayer* old_layer = state->visual.active_layer;
 
-	state->visual.active_layer = &global_3ds.bottom_layer;
-	global_3ds.bottom_layer.texture = r_load_texture(DATA_PATH("bgimage/massageback.t3x"));
+	// state->visual.active_layer = &global_3ds.bottom_layer;
+	// global_3ds.bottom_layer.texture = r_load_texture(DATA_PATH("bgimage/massageback.t3x"));
     // global_3ds.overlay = r_load_texture(PATH("static/mockup.t3x"));
 
-    global_3ds.bottom_layer.pointer_pos = (RVec2) { 10, 10 };
+    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 10, 10 };
 	ButtonObject* button = create_button(
 		state, 
 		r_load_texture(PATH("static/button_start.t3x")),
@@ -380,15 +383,15 @@ void title_hook(FataState* state) {
 }
 
 void title_frame(FataState* state) {
-	assert(global_3ds.bottom_layer.texture.valid);
+	// assert(global_3ds.bottom_layer.texture.valid);
 
-	C2D_SceneBegin(global_3ds.bottom_target);
-	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
+	// C2D_SceneBegin(global_3ds.bottom_target);
+	// C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
 
-	C2D_Fade(C2D_Color32f(0.0f, 0.0f, 0.0f, 0.5f));
-	draw_layer(state, &global_3ds.bottom_layer, DRAW_TEXTURES);
-	C2D_Fade(0);
-	draw_layer(state, &global_3ds.bottom_layer, DRAW_CHILDREN);
+	// C2D_Fade(C2D_Color32f(0.0f, 0.0f, 0.0f, 0.5f));
+	// draw_layer(state, &global_3ds.bottom_layer, DRAW_TEXTURES);
+	// C2D_Fade(0);
+	// draw_layer(state, &global_3ds.bottom_layer, DRAW_CHILDREN);
 
     // r_draw_texture(global_3ds.overlay, (RVec2) { 0, 0 });
 }
@@ -403,6 +406,25 @@ char* r_jump_hook(FataState* state, char* script_name) {
 	// }
 
 	return NULL;
+}
+
+void swap_screens(FataState* state) {
+	VisualScreen third_hand = state->visual;
+	state->visual = global_3ds.dual.other;
+	global_3ds.dual.other = third_hand;
+
+	printf("SWAP!!\n");
+
+	global_3ds.dual.bottom_active = !global_3ds.dual.bottom_active;
+}
+
+bool r_command_hook(FataState* state, char* cmd, Vector* args) {
+	if (strcmp("claire_ctrswapscreen", cmd) == 0) {
+		swap_screens(state);
+		return true;
+	}
+
+	return false;
 }
 
 #endif

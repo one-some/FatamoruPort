@@ -52,10 +52,12 @@ typedef struct {
 	VisualLayer* active_layer;
 
 	RFont default_font;
-} VisualManager;
+	RVec2 size;
+} VisualScreen;
 
 void init_layer(FataState* state, VisualLayer* layer, char* name);
 void init_page(FataState* state, VisualPage* page);
+void init_screen(FataState* state, VisualScreen* screen, RVec2 size);
 
 void copy_layer(VisualLayer* dest, VisualLayer* src);
 void copy_page(VisualPage* dest, VisualPage* src);

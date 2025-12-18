@@ -9,6 +9,6 @@
 [backlay]
 
 ; TODO transition botttom in like top
-[claire_ctrscreen screen="bottom"]
+[claire_ctrswapscreen]
 [image layer="base" storage="massageback" page="fore"]
 [s]

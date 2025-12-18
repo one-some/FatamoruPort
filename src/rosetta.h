@@ -33,6 +33,7 @@ extern int __real_printf(const char* format, ...);
 
 #include <stddef.h>
 #include "types.h"
+#include "vector.h"
 
 typedef struct FataState FataState;
 
@@ -72,6 +73,7 @@ void r_dbgout(char* string, size_t length);
 void r_step(FataState* state);
 
 char* r_jump_hook(FataState* state, char* storage);
+bool r_command_hook(FataState* state, char* cmd, Vector* args);
 
 bool r_main_loop(FataState* state);
 

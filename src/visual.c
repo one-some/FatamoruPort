@@ -31,6 +31,17 @@ void init_page(FataState* state, VisualPage* page) {
 	init_layer(state, &page->message_layer_one, "message1");
 }
 
+void init_screen(FataState* state, VisualScreen* screen, RVec2 size) {
+	screen->size = size;
+
+	screen->active_layer = &screen->fore.message_layer_zero;
+
+	screen->fore.name = "fore";
+	screen->back.name = "back";
+	init_page(state, &screen->fore);
+	init_page(state, &screen->back);
+}
+
 
 void copy_layer(VisualLayer* dest, VisualLayer* src) {
 	// Blehhhh....... :/

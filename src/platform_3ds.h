@@ -1,5 +1,7 @@
 #pragma once
 
+#include "visual.h"
+
 #define DISPLAY_TRANSFER_FLAGS \
 	(GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) | \
 	GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | \
@@ -21,19 +23,17 @@ typedef enum {
 	SPECIAL_STATE_TITLE
 } SpecialState;
 
-typedef enum {
-	VisualPage top_fore;
-	VisualPage top_back;
-
-	VisualPage bottom_back;
-	VisualPage bottom_fore;
-} PageSwapper;
+typedef struct {
+	VisualScreen other;
+	bool bottom_active;
+} ScreenSwapper;
 
 typedef struct {
 	C3D_RenderTarget* top_target;
 	C3D_RenderTarget* bottom_target;
 	SpecialState special_state;
-	VisualLayer bottom_layer;
+
+	ScreenSwapper dual;
 
     RTexture overlay;
 } Global3DS;
@@ -42,3 +42,4 @@ void debug_print_memory(FataState* state);
 uint64_t next_pow2(uint64_t x);
 void title_hook(FataState* state);
 void title_frame(FataState* state);
+void swap_screens(FataState* state);

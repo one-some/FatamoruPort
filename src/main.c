@@ -1,4 +1,5 @@
 // TODO: Arena allocater
+#include "main.h"
 #include "fs.h"
 #include "mem.h"
 #include <stdio.h>
@@ -35,6 +36,9 @@ bool run_command(CommandNode* command, FataState* state) {
     Vector* args = &command->args;
 	char* cmd = ((CommandArg*)v_get(args, 0))->key;
 
+	bool done = r_command_hook(state, cmd, args);
+	if (done) return false;
+
 	if (strcmp("endmacro", cmd) == 0) {
         return_from_callstack(state);
         return true;
@@ -59,38 +63,15 @@ bool run_command(CommandNode* command, FataState* state) {
         char* path = find_image(storage);
         assert(path);
 
-        VisualPage* page = NULL;
         char* page_str = get_arg_str(args, "page");
         assert(page_str);
 
-        if (strcmp(page_str, "fore") == 0) {
-            page = &state->visual.fore;
-        } else if (strcmp(page_str, "back") == 0) {
-            page = &state->visual.back;
-        } else {
-            assert(false);
-        }
-
-        VisualLayer* layer = NULL;
         char* layer_str = get_arg_str(args, "layer");
         assert(layer_str);
 
-        if (strcmp(layer_str, "base") == 0) {
-            layer = &page->base_layer;
-        } else if (strcmp(layer_str, "0") == 0) {
-            layer = &page->layer_zero;
-        } else if (strcmp(layer_str, "1") == 0) {
-            layer = &page->layer_one;
-        } else if (strcmp(layer_str, "2") == 0) {
-            layer = &page->layer_two;
-        } else if (strcmp(layer_str, "message0") == 0) {
-            layer = &page->message_layer_zero;
-        } else if (strcmp(layer_str, "message1") == 0) {
-            layer = &page->message_layer_one;
-        } else {
-			printf("[err] Weird layer %s\n", layer_str);
-            assert(false);
-        }
+		printf("Lol\n");
+        VisualLayer* layer = get_layer(state, layer_str, page_str);
+		printf("Ok no\n");
 
         if (layer->texture.valid) {
 			r_unload_texture(layer->texture);
@@ -499,6 +480,46 @@ void frame_work(FataState* state, double delta_ms) {
 	exit(0);
 }
 
+void render_screen(FataState* state) {
+	RRect render_rect = {0};
+	render_rect.height = (float)state.visual.size.y;
+	render_rect.width = render_rect.height / (float)state.canvas_size.y * (float)state.canvas_size.x;
+	render_rect.x = (float)((state.visual.size.x - render_rect.width) / 2);
+	render_rect.y = 0;
+
+	r_begin_frame(&state);
+		r_begin_render_texture_draw(fore_target);
+			// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+			draw_page(&state, &state.visual.fore);
+		r_end_render_texture_draw(fore_target);
+
+		// Transition if needed
+		float fore_to_back_fade = 0.0;
+		if (state.transition_max_ms > 0.0f) {
+			printf("TMax: %f ... TRem: %f\n", state.transition_max_ms, state.transition_remaining_ms);
+			float trans_progress_ms = state.transition_max_ms - state.transition_remaining_ms;
+			fore_to_back_fade = trans_progress_ms / state.transition_max_ms;
+		}
+
+		if (fore_to_back_fade > 0.0f) {
+			r_begin_render_texture_draw(back_target);
+				// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+				draw_page(&state, &state.visual.back);
+			r_end_render_texture_draw(back_target);
+		}
+
+		r_clear_frame(R_WHITE);
+
+		//DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
+		if (fore_to_back_fade > 0.0f) {
+			r_draw_render_texture(back_target, 1.0);
+		}
+
+		r_draw_render_texture(fore_target, 1.0 - fore_to_back_fade);
+
+	r_end_frame();
+}
+
 int main() {
 	//printf("FataMoru!! ^-^\n");
     //
@@ -516,19 +537,12 @@ int main() {
 	state.call_stack = v_new();
     state.macros = v_new();
 	state.canvas_size = (RVec2) { 800, 600 };
-	state.window_size = (RVec2) { 800, 600 };
 
-	state.visual.active_layer = &state.visual.fore.message_layer_zero;
-
-	state.visual.fore.name = "fore";
-	state.visual.back.name = "back";
-	init_page(&state, &state.visual.fore);
-	init_page(&state, &state.visual.back);
-
+	init_screen(&state, &state.visual, state.canvas_size);
     r_init(&state);
 
-    RRenderTexture fore_target = r_create_render_texture(state.window_size);
-    RRenderTexture back_target = r_create_render_texture(state.window_size);
+    RRenderTexture fore_target = r_create_render_texture(state.visual.size);
+    RRenderTexture back_target = r_create_render_texture(state.visual.size);
 
     jump_to_point(&state, "bootstrap.ks", NULL);
 
@@ -572,45 +586,10 @@ int main() {
 			}
 		}
 
-        RRect render_rect = {0};
-        render_rect.height = (float)state.window_size.y;
-        render_rect.width = render_rect.height / (float)state.canvas_size.y * (float)state.canvas_size.x;
-        render_rect.x = (float)((state.window_size.x - render_rect.width) / 2);
-        render_rect.y = 0;
 
         frame_work(&state, delta_ms);
 
-        r_begin_frame(&state);
-			r_begin_render_texture_draw(fore_target);
-				// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-				draw_page(&state, &state.visual.fore);
-			r_end_render_texture_draw(fore_target);
-
-			// Transition if needed
-			float fore_to_back_fade = 0.0;
-			if (state.transition_max_ms > 0.0f) {
-				printf("TMax: %f ... TRem: %f\n", state.transition_max_ms, state.transition_remaining_ms);
-				float trans_progress_ms = state.transition_max_ms - state.transition_remaining_ms;
-				fore_to_back_fade = trans_progress_ms / state.transition_max_ms;
-			}
-
-			if (fore_to_back_fade > 0.0f) {
-				r_begin_render_texture_draw(back_target);
-					// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-					draw_page(&state, &state.visual.back);
-				r_end_render_texture_draw(back_target);
-			}
-
-			r_clear_frame(R_WHITE);
-
-            //DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
-            if (fore_to_back_fade > 0.0f) {
-				r_draw_render_texture(back_target, 1.0);
-            }
-
-			r_draw_render_texture(fore_target, 1.0 - fore_to_back_fade);
-
-        r_end_frame();
+		render_screen(&state);
     }
 
     return 0;
