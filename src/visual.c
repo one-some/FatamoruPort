@@ -64,7 +64,6 @@ void draw_layer(FataState* state, VisualLayer* layer, int flags) {
 
             if (obj->type == VO_BUTTON) {
                 ButtonObject* button = (ButtonObject*)obj;
-
                 RRect rect = {
                     .x = button->position.x,
                     .y = button->position.y,
@@ -72,24 +71,73 @@ void draw_layer(FataState* state, VisualLayer* layer, int flags) {
                     .height = button->texture.size.y
                 };
 
+				//printf("Tex: (%d, %d)\n", button->texture.size.x, button->texture.size.y);
+
+				bool mouse_down = r_get_click_down();
                 RVec2 mouse_pos = r_get_cursor_pos();
                 bool mouse_inside = rect_contains(rect, mouse_pos);
+				bool traveling = false;
 
-                if (!button->hovered && mouse_inside) {
+				// printf("Draw MousePos: (%d, %d)\n", mouse_pos.x, mouse_pos.y);
+				printf("State: %d, Inside: %d\n", button->mouse_state, mouse_inside);
+
+				if (
+					button->mouse_state == BUTTON_MOUSE_NONE &&
+					mouse_inside
+				) {
+					// Not hover -> hover
+					button->mouse_state = BUTTON_MOUSE_HOVER;
+
+					printf("Hover start.\n");
+
                     r_play_sound(button->enter_se);
-                }
-                button->hovered = mouse_inside;
+				} else if (
+					button->mouse_state == BUTTON_MOUSE_HOVER &&
+					mouse_down
+				) {
+					// Hover -> depressed
+					button->mouse_state = BUTTON_MOUSE_DEPRESSED;
+					printf("Depressed\n");
+
+				} else if (
+					button->mouse_state == BUTTON_MOUSE_DEPRESSED &&
+					!mouse_down
+				) {
+					// depressed -> maybe click!
+					button->mouse_state = BUTTON_MOUSE_NONE;
+					traveling = mouse_inside;
+					printf("CLICK? %d\n", traveling);
+				} else if (
+					button->mouse_state == BUTTON_MOUSE_HOVER &&
+					!mouse_inside
+				) {
+					// Hover -> not hover
+					button->mouse_state = BUTTON_MOUSE_NONE;
+					printf("Hover end\n");
+				}
 
                 // Normal, pressed, hovered
                 int offset_width = button->texture.size.x / 3;
                 int x_offset = mouse_inside ? offset_width * 2 : 0;
 
-                r_draw_texture(button->texture, button->position);
+				RColor tint = R_BLANK;
 
-                // DrawRectangleLinesEx(rect, 1.0f, RED);
+				if (button->flags & BUTTON_NATIVE) {
+					if (button->flags & BUTTON_DISABLED) {
+						tint = (RColor) { 0, 0, 0, 0xCC };
+					} else if (
+						button->mouse_state == BUTTON_MOUSE_DEPRESSED ||
+						button->mouse_state == BUTTON_MOUSE_HOVER
+					) {
+						tint = (RColor) { 0, 0, 0, 0x88 };
+					}
 
-                if (mouse_inside && r_get_click()) {
-                    jump_to_point(state, NULL, button->target);
+				}
+
+                r_draw_texture_tint(button->texture, button->position, tint);
+
+                if (traveling) {
+                    jump_to_point(state, button->storage, button->target);
                 }
             } else if (obj->type == VO_TEXT) {
                 TextObject* text_obj = (TextObject*)obj;

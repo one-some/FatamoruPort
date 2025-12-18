@@ -111,20 +111,8 @@ bool run_command(CommandNode* command, FataState* state) {
 
     } else if (strcmp("jump", cmd) == 0) {
         char* storage = get_arg_str(args, "storage");
-
-		bool handled = r_jump_hook(state, storage);
-
-		if (!handled) {
-			char* path = storage ? find_script(storage) : NULL;
-
-			char* target = get_arg_str(args, "target");
-			if (target) {
-				assert(target[0] == '*');
-				target++;
-			}
-
-			jump_to_point(state, path, target);
-		}
+		char* target = get_arg_str(args, "target");
+		jump_to_point(state, storage, target);
 
         return true;
     } else if (strcmp("playbgm", cmd) == 0) {
@@ -201,9 +189,9 @@ bool run_command(CommandNode* command, FataState* state) {
 		}
     } else if (strcmp("button", cmd) == 0) {
 		// button graphic:選択ライン hint:"Exit the game." target:*end enterse:button
-		char* storage = get_arg_str(args, "graphic");
-		assert(storage);
-        char* path = find_image(storage);
+		char* bg_storage = get_arg_str(args, "graphic");
+		assert(bg_storage);
+        char* path = find_image(bg_storage);
         assert(path);
 
         char* target = get_arg_str(args, "target");
@@ -212,23 +200,20 @@ bool run_command(CommandNode* command, FataState* state) {
             target++;
         }
 
-		ButtonObject* button = malloc(sizeof(ButtonObject));
-        button->base = (UIObject) { .type = VO_BUTTON };
-		button->target = target;
-		button->position = state->visual.active_layer->pointer_pos;
-        button->hovered = false;
+		ButtonObject* button = create_button(
+			state, 
+			r_load_texture(path),
+			get_arg_str(args, "storage"),
+			target,
+			0
+		);
 
         // Blehhh!!
         button->enter_se.valid = false;
-
         char* enter_se_storage = get_arg_str(args, "enterse");
         if (enter_se_storage) {
             button->enter_se = r_load_sound(find_sfx(enter_se_storage));
         }
-
-        button->texture = r_load_texture(path);
-
-		v_append(&state->visual.active_layer->children, button);
     } else if (strcmp("close", cmd) == 0) {
 		printf("[end] Goodbye from The House in Fata Morgana...\n");
 		exit(0);
@@ -252,18 +237,10 @@ bool run_command(CommandNode* command, FataState* state) {
 			return false;
 		}
 
-		char* path = find_script(storage);
-		assert(path);
-
 		char* target = get_arg_str(args, "target");
-        if (target) {
-            assert(target[0] == '*');
-            target++;
-        }
-
         push_to_callstack(state);
 
-        jump_to_point(state, path, target);
+        jump_to_point(state, storage, target);
 		return true;
     } else if (strcmp("return", cmd) == 0) {
         return_from_callstack(state);
@@ -530,7 +507,7 @@ int main() {
     FataState state = {0};
 
     state.audio.bgm.valid = false;
-	state.script_path = NULL;
+	state.script_name = NULL;
     state.wait_timer_ms = 0.0f;
     state.last_time_ms = r_time_ms();
     state.transition_remaining_ms = 0.0f;
@@ -554,7 +531,7 @@ int main() {
     RRenderTexture fore_target = r_create_render_texture(state.window_size);
     RRenderTexture back_target = r_create_render_texture(state.window_size);
 
-    jump_to_point(&state, PATH("static/bootstrap.ks"), NULL);
+    jump_to_point(&state, "bootstrap.ks", NULL);
 
 	Font_DroidSerif = r_load_font(find_font("DroidSerif"));
 	Font_LibreBaskerville = r_load_font(find_font("LibreBaskerville"));

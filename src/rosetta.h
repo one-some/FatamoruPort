@@ -71,7 +71,7 @@ void r_shutdown();
 void r_dbgout(char* string, size_t length);
 void r_step(FataState* state);
 
-bool r_jump_hook(FataState* state, char* storage);
+char* r_jump_hook(FataState* state, char* storage);
 
 bool r_main_loop(FataState* state);
 
@@ -118,6 +118,8 @@ void r_stop_sound(RSound track);
 void r_unload_sound(RSound track);
 
 bool r_get_click();
+bool r_get_click_down();
+
 bool r_get_skip_held();
 RVec2 r_get_cursor_pos();
 

@@ -1,25 +1,34 @@
 #include "state.h"
 #include "parse.h"
+#include "fs.h"
 #include <stdlib.h>
 #include <string.h>
 
-void jump_to_point(FataState* state, char* path, char* label_target) {
+void jump_to_point(FataState* state, char* script_name, char* label_target) {
+	char* redirect skip = r_jump_hook(state, script_name);
+
+	if (redirect) {
+		script_name = redirect;
+	}
+
+	char* path = script_name ? find_script(script_name) : NULL;
+
 	state->stopped = false;
 	state->stopped_until_click = false;
     state->node_idx = 0;
     state->target_nodes = &state->nodes;
 
     printf(
-        "[load] Path: '%s', LabelTarget: '%s'\n",
-        path ? path : "(empty)",
+        "[load] Storage: '%s', LabelTarget: '%s'\n",
+        script_name ? script_name : "(empty)",
         label_target ? label_target : "(empty)"
     );
 
-    bool same_path = !path || (state->script_path && strcmp(state->script_path, path) == 0);
+    bool do_load = !script_name || (state->script_name && strcmp(state->script_name, script_name) == 0);
 
-    if (path && !same_path) {
+    if (script_name && !do_load) {
         printf("[load] Loading from scratch!\n");
-		state->script_path = path;
+		state->script_name = script_name;
 
         state->nodes = v_new();
 
@@ -43,7 +52,7 @@ void jump_to_point(FataState* state, char* path, char* label_target) {
 		if (node->type == NODE_COMMAND) {
 			CommandNode* cmd = (CommandNode*)node;
 
-			if (cmd->data_type == CMD_DATA_MACRO && !same_path) {
+			if (cmd->data_type == CMD_DATA_MACRO && !do_load) {
                 char* name = get_arg_str(&cmd->args, "name");
                 assert(name);
 
@@ -90,7 +99,7 @@ void jump_to_point(FataState* state, char* path, char* label_target) {
 
 void push_to_callstack(FataState* state) {
     ScriptLocation* where = malloc(sizeof(ScriptLocation));
-    where->script_path = state->script_path;
+    where->script_name = state->script_name;
     where->node_idx = state->node_idx;
     where->target_nodes = state->target_nodes;
     v_append(&state->call_stack, where);
@@ -102,7 +111,7 @@ void return_from_callstack(FataState* state) {
     ScriptLocation* where = v_pop(&state->call_stack, state->call_stack.length - 1);
     assert(where);
 
-    jump_to_point(state, where->script_path, NULL);
+    jump_to_point(state, where->script_name, NULL);
     state->node_idx = where->node_idx;
 
     // This is gonna bite me in the butt later

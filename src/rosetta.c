@@ -19,7 +19,7 @@ int __wrap_printf(const char* format, ...) {
 
 // This kinda suckss
 void r_draw_texture(RTexture texture, RVec2 position) {
-	r_draw_texture_tint(texture, position, R_WHITE);
+	r_draw_texture_tint(texture, position, R_BLANK);
 }
 
 void r_draw_texture_tint(RTexture texture, RVec2 position, RColor tint) {

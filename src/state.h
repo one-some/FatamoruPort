@@ -10,7 +10,7 @@ typedef struct FataState {
     Vector nodes;
     Vector* target_nodes;
 
-	char* script_path;
+	char* script_name;
     double last_time_ms;
     float wait_timer_ms;
     int node_idx;
@@ -37,7 +37,7 @@ typedef struct FataState {
 } FataState;
 
 typedef struct {
-	char* script_path;
+	char* script_name;
 	int node_idx;
     Vector* target_nodes;
 } ScriptLocation;

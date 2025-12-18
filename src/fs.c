@@ -60,6 +60,7 @@ char* find_script(char* storage) {
 		DATA_PATH("scenario/%s"),
 		DATA_PATH("others/%s"),
 		DATA_PATH("system/%s"),
+		DATA_PATH("static/%s"),
 		NULL
 	};
 	return find_file(storage, patterns);

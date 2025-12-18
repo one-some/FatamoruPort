@@ -4,7 +4,7 @@
 #include "ui.h"
 #include "state.h"
 
-void create_text(FataState* state, char* text) {
+TextObject* create_text(FataState* state, char* text) {
 	TextObject* text_object = malloc(sizeof(TextObject));
 
 	text_object->base = (UIObject) { .type = VO_TEXT };
@@ -22,5 +22,21 @@ void create_text(FataState* state, char* text) {
 	printf("Making text on %s\n", state->visual.active_layer->name);
 
 	v_append(&state->visual.active_layer->children, text_object);
+
+	return text_object;
 }
 
+ButtonObject* create_button(FataState* state, RTexture texture, char* storage, char* target, int flags) {
+	ButtonObject* button = malloc(sizeof(ButtonObject));
+	button->base = (UIObject) { .type = VO_BUTTON };
+	button->storage = storage;
+	button->target = target;
+	button->position = state->visual.active_layer->pointer_pos;
+	button->mouse_state = BUTTON_MOUSE_NONE;
+	button->texture = texture;
+	button->flags = flags;
+
+	v_append(&state->visual.active_layer->children, button);
+
+	return button;
+}

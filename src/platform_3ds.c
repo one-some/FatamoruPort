@@ -132,7 +132,11 @@ RTexture r_load_texture(char* path) {
 
 	return (RTexture) {
 		.valid = true,
-        .resource = image
+        .resource = image,
+		.size = (RVec2) {
+			image->subtex->width,
+			image->subtex->height
+		}
 	};
 }
 
@@ -144,13 +148,20 @@ void r_draw_texture_tint_sample(RTexture texture, RVec2 position, RColor tint, R
 
     // printf("Drawing Texture %d (%d, %d)\n", ((int)texture.resource & 0xFFF), position.x, position.y);
 
+    C2D_ImageTint c_tint;
+	C2D_PlainImageTint(
+		&c_tint,
+		C2D_Color32(tint.r, tint.g, tint.b, 0xFF),
+		((float)tint.a) / 255.0f
+	);
+
     C2D_Image* image = (C2D_Image*)texture.resource;
 	C2D_DrawImageAt(
         *image,
         position.x,
         position.y,
         0.5f,
-        NULL,
+        &c_tint,
         1.0f,
         1.0f
     );
@@ -288,13 +299,12 @@ void r_unload_sound(RSound track) { }
 
 bool r_get_click() {
     u32 down = hidKeysDown();
-    if (!(down & KEY_TOUCH)) return false;
+	return down & KEY_TOUCH;
+}
 
-    touchPosition pos;
-    hidTouchRead(&pos);
-    printf("T: (%d, %d)\n", pos.px, pos.py);
-
-	return true;
+bool r_get_click_down() {
+    u32 down = hidKeysHeld();
+	return down & KEY_TOUCH;
 }
 
 bool r_get_skip_held() {
@@ -302,7 +312,15 @@ bool r_get_skip_held() {
 }
 
 RVec2 r_get_cursor_pos() {
-	return (RVec2) { 0, 0 };
+    touchPosition pos;
+    hidTouchRead(&pos);
+
+	static touchPosition last_pos = { 0 };
+	if (pos.px || pos.py) {
+		last_pos = pos;
+	}
+
+	return (RVec2) { last_pos.px, last_pos.py };
 }
 
 void r_set_window_title(char* title) { }
@@ -321,14 +339,37 @@ void title_hook(FataState* state) {
 
 	state->visual.active_layer = &global_3ds.bottom_layer;
 	global_3ds.bottom_layer.texture = r_load_texture(DATA_PATH("bgimage/massageback.t3x"));
-    global_3ds.overlay = r_load_texture(PATH("static/mockup.t3x"));
+    // global_3ds.overlay = r_load_texture(PATH("static/mockup.t3x"));
 
-    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 50, 50 };
-	// create_text(state, "Enter the Mansion");
-	// create_text(state, "Inspect Your Memories");
-    // create_text(state, "Config");
-    // create_text(state, "Extras");
+    global_3ds.bottom_layer.pointer_pos = (RVec2) { 10, 10 };
+	ButtonObject* button = create_button(
+		state, 
+		r_load_texture(PATH("static/button_start.t3x")),
+		"scenario.ks",
+		"start",
+		BUTTON_NATIVE
+	);
 
+    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 10, 115 };
+	// create_button(
+	// 	state, 
+	// 	r_load_texture(PATH("static/button_inspect.t3x")),
+	// 	NULL
+	// );
+
+    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 10, 188 };
+	// create_button(
+	// 	state, 
+	// 	r_load_texture(PATH("static/button_config.t3x")),
+	// 	NULL
+	// );
+
+    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 165, 188 };
+	// create_button(
+	// 	state, 
+	// 	r_load_texture(PATH("static/button_extras.t3x")),
+	// 	NULL
+	// );
 
 	state->visual.active_layer = old_layer;
 
@@ -349,22 +390,19 @@ void title_frame(FataState* state) {
 	C2D_Fade(0);
 	draw_layer(state, &global_3ds.bottom_layer, DRAW_CHILDREN);
 
-    r_draw_texture(global_3ds.overlay, (RVec2) { 0, 0 });
-
-	// RTextInstance ti = r_create_text("L0L FROM Fata Morgana", (RFont) { 0 });
-	// r_draw_text(ti, (RVec2) { 0, 0 });
+    // r_draw_texture(global_3ds.overlay, (RVec2) { 0, 0 });
 }
 
-bool r_jump_hook(FataState* state, char* storage) {
-	if (strcmp(storage, "title.ks") == 0) {
-		// We have a special menu for the 3ds!
-		state->stopped = true;
-		title_hook(state);
-
-		return true;
+char* r_jump_hook(FataState* state, char* script_name) {
+	if (strcmp(script_name, "title.ks") == 0) {
+		return "3ds_title.ks";
 	}
+	// else if (strcmp(script_name, "scenario.ks") == 0) {
+	// 	// Stop rendering the bottom title screen
+	// 	// global_3ds.special_state = SPECIAL_STATE_NONE;
+	// }
 
-	return false;
+	return NULL;
 }
 
 #endif
