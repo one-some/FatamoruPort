@@ -18,13 +18,12 @@ typedef struct FataState {
     AudioManager audio;
     VisualScreen primary_screen_storage;
     VisualScreen* active_screen;
+	Vector screens;
 
 	bool can_skip_wait;
 	bool can_skip_transition;
 
     bool wait_for_transition;
-    float transition_max_ms;
-    float transition_remaining_ms;
 
     bool stopped;
 	bool stopped_until_click;

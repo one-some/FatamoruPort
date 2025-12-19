@@ -17,7 +17,7 @@ void init_layer(VisualScreen* screen, VisualLayer* layer, char* name) {
 	layer->margins = (Margins) {
 		.left = 70,
 		.top = 0,
-		.right = 70,
+		.right = 70
 		.bottom = 20
 	};
 }
@@ -35,7 +35,7 @@ void init_page(VisualScreen* screen, VisualPage* page) {
 	init_layer(screen, &page->message_layer_one, "message1");
 }
 
-void init_screen(VisualScreen* screen, char* name, RVec2 size) {
+void init_screen(FataState* state, VisualScreen* screen, char* name, RVec2 size) {
     screen->name = name;
 	screen->size = size;
 
@@ -47,6 +47,8 @@ void init_screen(VisualScreen* screen, char* name, RVec2 size) {
 	init_page(screen, &screen->back);
 
     screen->valid = true;
+
+	v_append(&state->screens, screen);
 }
 
 

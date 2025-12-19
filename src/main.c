@@ -420,14 +420,14 @@ bool run_command(CommandNode* command, FataState* state) {
     return false;
 }
 
-void stop_transition(FataState* state) {
-	unload_page_textures(&state->active_screen->fore);
+void stop_transition(FataState* state, VisualScreen* screen) {
+	unload_page_textures(&screen->fore);
 
-	copy_page(&state->active_screen->fore, &state->active_screen->back);
-	init_page(state->active_screen, &state->active_screen->back);
+	copy_page(&screen->fore, &screen->back);
+	init_page(screen, &screen->back);
 	
-	state->active_screen->fore.name = "fore";
-    state->active_screen->back.name = "back";
+	screen->fore.name = "fore";
+    screen->back.name = "back";
 
 	state->transition_max_ms = 0.0f;
 	state->transition_remaining_ms = 0.0f;
@@ -436,14 +436,22 @@ void stop_transition(FataState* state) {
 }
 
 void frame_work(FataState* state, double delta_ms) {
-    if (state->transition_remaining_ms > 0.0f) {
-        state->transition_remaining_ms -= delta_ms;
-        if (state->transition_remaining_ms <= 0.0f) {
-			stop_transition(state);
-        } else if (state->wait_for_transition) {
-            return;
-        }
-    }
+	bool dont = false;
+	for (int i=0; i<state->screens.length; i++) {
+		VisualScreen* screen = v_get(&state->screens, i);
+
+		if (screen->trans_remaining_ms <= 0.0f) return;
+
+		screen->trans_remaining_ms -= delta_ms;
+
+		if (screen->trans_remaining_ms <= 0.0f) {
+			stop_transition(scree);
+		} else if (state->wait_for_transition) {
+			dont = true;
+		}
+	}
+
+	if (dont) return;
 
     if (state->stopped) return;
     if (state->stopped_until_click) return;

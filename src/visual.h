@@ -57,12 +57,16 @@ typedef struct VisualScreen {
 	RFont default_font;
 	RVec2 size;
 
+	bool transitioning;
+	float tran_duration_ms;
+	float trans_remaining_ms;
+
     bool valid;
 } VisualScreen;
 
 void init_layer(VisualScreen* screen, VisualLayer* layer, char* name);
 void init_page(VisualScreen* screen, VisualPage* page);
-void init_screen(VisualScreen* screen, char* name, RVec2 size);
+void init_screen(FataState* state, VisualScreen* screen, char* name, RVec2 size);
 
 void copy_layer(VisualLayer* dest, VisualLayer* src);
 void copy_page(VisualPage* dest, VisualPage* src);
