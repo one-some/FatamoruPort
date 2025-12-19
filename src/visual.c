@@ -224,3 +224,42 @@ VisualLayer* get_layer(FataState* state, char* layer_name, char* page_name) {
 	return NULL;
 }
 
+void render_screen(FataState* state) {
+	RRect render_rect = {0};
+	render_rect.height = (float)state->visual.size.y;
+	render_rect.width = render_rect.height / (float)state->canvas_size.y * (float)state->canvas_size.x;
+	render_rect.x = (float)((state->visual.size.x - render_rect.width) / 2);
+	render_rect.y = 0;
+
+	float fore_to_back_fade = 0.0;
+	if (state->transition_max_ms > 0.0f) {
+		printf("TMax: %f ... TRem: %f\n", state->transition_max_ms, state->transition_remaining_ms);
+		float trans_progress_ms = state->transition_max_ms - state->transition_remaining_ms;
+		fore_to_back_fade = trans_progress_ms / state->transition_max_ms;
+	}
+
+	r_begin_frame(state);
+		r_begin_render_texture_draw(state->fore_target);
+			// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+			draw_page(state, &state->visual.fore);
+		r_end_render_texture_draw(state->fore_target);
+
+		if (fore_to_back_fade > 0.0f) {
+			r_begin_render_texture_draw(state->back_target);
+				// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+				draw_page(state, &state->visual.back);
+			r_end_render_texture_draw(state->back_target);
+		}
+
+		r_clear_frame(R_WHITE);
+
+		//DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
+		if (fore_to_back_fade > 0.0f) {
+			r_draw_render_texture(state->back_target, 1.0);
+		}
+
+		r_draw_render_texture(state->fore_target, 1.0 - fore_to_back_fade);
+
+	r_end_frame();
+}
+

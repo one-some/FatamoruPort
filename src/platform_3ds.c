@@ -103,9 +103,12 @@ bool r_main_loop(FataState* state) {
 }
 
 void r_begin_frame(FataState* state) {
-	if (global_3ds.dual.bottom_active) {
+	if (!global_3ds.dual.bottom_active) {
 		swap_screens(state);
 	}
+
+	draw_screen(state);
+	swap_screens(state);
 
 	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 

@@ -33,6 +33,9 @@ typedef struct FataState {
 
     char* speaker;
 	RVec2 canvas_size;
+
+	RRenderTexture fore_target;
+	RRenderTexture back_target;
 } FataState;
 
 typedef struct {

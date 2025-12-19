@@ -67,3 +67,5 @@ void draw_page(FataState* state, VisualPage* page);
 
 void unload_page_textures(VisualPage* page);
 VisualLayer* get_layer(FataState* state, char* layer_name, char* page_name);
+
+void render_screen(FataState* state);
