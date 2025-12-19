@@ -16,7 +16,8 @@ typedef struct FataState {
     int node_idx;
 
     AudioManager audio;
-    VisualScreen visual;
+    VisualScreen primary_screen_storage;
+    VisualScreen* active_screen;
 
 	bool can_skip_wait;
 	bool can_skip_transition;
@@ -33,9 +34,6 @@ typedef struct FataState {
 
     char* speaker;
 	RVec2 canvas_size;
-
-	RRenderTexture fore_target;
-	RRenderTexture back_target;
 } FataState;
 
 typedef struct {

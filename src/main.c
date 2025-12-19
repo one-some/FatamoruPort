@@ -144,7 +144,7 @@ bool run_command(CommandNode* command, FataState* state) {
 		// Hey Claire, if you're debugging this because things are offset,
 		// take a look at system/Config.tjs again. Remember the margins!
 		// XXOXOO, Claire
-		VisualLayer* layer = state->visual.active_layer;
+		VisualLayer* layer = state->active_screen->active_layer;
 
         int x = get_arg_int(args, "x");
         if (x != NO_ARG_INT) {
@@ -155,23 +155,27 @@ bool run_command(CommandNode* command, FataState* state) {
         if (y != NO_ARG_INT) {
 			layer->pointer_pos.y = y + layer->margins.top;
 		}
+
+        printf("[locate] X:%d, %s\n", layer->pointer_pos.x, state->active_screen->name);
+
     } else if (strcmp("current", cmd) == 0) {
 		char* layer = get_arg_str(args, "layer");
 		assert(layer);
 
-		if (strcmp("message0", layer) == 0) {
-			state->visual.active_layer = &state->visual.fore.message_layer_zero;
-		} else if (strcmp("message1", layer) == 0) {
-			state->visual.active_layer = &state->visual.fore.message_layer_one;
-		} else {
-			assert(false);
-		}
+        state->active_screen->active_layer = get_layer(state, layer, NULL);
     } else if (strcmp("button", cmd) == 0) {
 		// button graphic:選択ライン hint:"Exit the game." target:*end enterse:button
 		char* bg_storage = get_arg_str(args, "graphic");
 		assert(bg_storage);
         char* path = find_image(bg_storage);
         assert(path);
+
+        int flags = 0;
+
+        // TODO: has_arg?
+		if (get_arg_str(args, "native")) {
+            flags |= BUTTON_NATIVE;
+        }
 
         char* target = get_arg_str(args, "target");
         if (target) {
@@ -184,7 +188,7 @@ bool run_command(CommandNode* command, FataState* state) {
 			r_load_texture(path),
 			get_arg_str(args, "storage"),
 			target,
-			0
+			flags
 		);
 
         // Blehhh!!
@@ -226,10 +230,10 @@ bool run_command(CommandNode* command, FataState* state) {
 		return true;
     } else if (strcmp("cm", cmd) == 0) {
 		VisualLayer* layers[] = {
-			&state->visual.fore.message_layer_zero,
-			&state->visual.fore.message_layer_one,
-			&state->visual.back.message_layer_zero,
-			&state->visual.back.message_layer_one,
+			&state->active_screen->fore.message_layer_zero,
+			&state->active_screen->fore.message_layer_one,
+			&state->active_screen->back.message_layer_zero,
+			&state->active_screen->back.message_layer_one,
 			NULL
 		};
 
@@ -243,7 +247,7 @@ bool run_command(CommandNode* command, FataState* state) {
 			printf("Resetting to (%d, %d)\n", layer->margins.left, layer->margins.top);
 		}
     } else if (strcmp("font", cmd) == 0) {
-		RFont* font = &state->visual.active_layer->font;
+		RFont* font = &state->active_screen->active_layer->font;
 
 		char* size_str = get_arg_str(args, "size");
 		if (size_str) {
@@ -267,7 +271,7 @@ bool run_command(CommandNode* command, FataState* state) {
 			font->color.b = ((rgb & 0x0000FF));
 		}
 	} else if (strcmp("backlay", cmd) == 0) {
-		copy_page(&state->visual.back, &state->visual.fore);
+		copy_page(&state->active_screen->back, &state->active_screen->fore);
 	} else if (strcmp("position", cmd) == 0) {
 		VisualLayer* layer = get_layer(
 			state,
@@ -302,7 +306,7 @@ bool run_command(CommandNode* command, FataState* state) {
 		assert(name);
 		r_set_window_title(name);
     } else if (strcmp("r", cmd) == 0) {
-		VisualLayer* layer = state->visual.active_layer;
+		VisualLayer* layer = state->active_screen->active_layer;
 		layer->pointer_pos.x = layer->margins.left;
 
 		// TODO: Spacing...
@@ -360,7 +364,7 @@ bool run_command(CommandNode* command, FataState* state) {
         char* name = get_arg_str(args, "name");
         assert(name);
 
-        VisualLayer* layer = state->visual.active_layer;
+        VisualLayer* layer = state->active_screen->active_layer;
         if (*name != '\0') {
             // scenario/macro.ks
             layer->pointer_pos.x = 75 + layer->margins.left;
@@ -375,7 +379,7 @@ bool run_command(CommandNode* command, FataState* state) {
 
             create_text(state, name_buf);
 
-            layer->font = state->visual.default_font;
+            layer->font = state->active_screen->default_font;
         }
 
 		layer->pointer_pos.x = 0 + layer->margins.left;
@@ -384,12 +388,12 @@ bool run_command(CommandNode* command, FataState* state) {
     } else if (strcmp("c", cmd) == 0) {
         char* text = get_arg_str(args, "text");
 
-		RFont font = state->visual.active_layer->font;
+		RFont font = state->active_screen->active_layer->font;
 
 		RVec2 size = r_measure_text(font, text);
 
 		int pos = (state->canvas_size.x - size.x) / 2;
-		state->visual.active_layer->pointer_pos.x = pos;
+		state->active_screen->active_layer->pointer_pos.x = pos;
 
         assert(text);
         create_text(state, text);
@@ -417,13 +421,13 @@ bool run_command(CommandNode* command, FataState* state) {
 }
 
 void stop_transition(FataState* state) {
-	unload_page_textures(&state->visual.fore);
+	unload_page_textures(&state->active_screen->fore);
 
-	copy_page(&state->visual.fore, &state->visual.back);
-	init_page(state, &state->visual.back);
+	copy_page(&state->active_screen->fore, &state->active_screen->back);
+	init_page(state->active_screen, &state->active_screen->back);
 	
-	state->visual.fore.name = "fore";
-    state->visual.back.name = "back";
+	state->active_screen->fore.name = "fore";
+    state->active_screen->back.name = "back";
 
 	state->transition_max_ms = 0.0f;
 	state->transition_remaining_ms = 0.0f;
@@ -497,11 +501,10 @@ int main() {
     state.macros = v_new();
 	state.canvas_size = (RVec2) { 800, 600 };
 
-	init_screen(&state, &state.visual, state.canvas_size);
+    state.active_screen = &state.primary_screen_storage;
     r_init(&state);
-
-    state.fore_target = r_create_render_texture(state.visual.size);
-    state.back_target = r_create_render_texture(state.visual.size);
+    // Platform must assign screen with init_screen!
+    assert(state.primary_screen_storage.valid);
 
     jump_to_point(&state, "bootstrap.ks", NULL);
 
@@ -511,12 +514,10 @@ int main() {
 	Font_LibreBaskerville.spacing = 8;
 
 	// See system/Config.tjs
-	state.visual.default_font = Font_LibreBaskerville;
+	state.active_screen->default_font = Font_LibreBaskerville;
 	// state.visual.default_font.shadow_color = GetColor(0x2b2b2b);
 	// state.visual.default_font.shadow_enabled = true
 	// TODO: Edge
-    
-    RTexture tex = r_load_texture(find_image("5章_ジゼルの実家"));
 
 	r_post_init(&state);
 
@@ -545,10 +546,9 @@ int main() {
 			}
 		}
 
-
         frame_work(&state, delta_ms);
 
-		render_screen(&state);
+		draw_everything(&state, &state.primary_screen_storage);
     }
 
     return 0;

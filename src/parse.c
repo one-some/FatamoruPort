@@ -35,6 +35,7 @@ char* load_src(const char* path) {
 
 	src[len] = '\0';
 
+    printf("[ld] Finished\n");
 	return src;
 }
 

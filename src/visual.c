@@ -6,14 +6,14 @@
 #include "state.h"
 #include "ui.h"
 
-void init_layer(FataState* state, VisualLayer* layer, char* name) {
+void init_layer(VisualScreen* screen, VisualLayer* layer, char* name) {
 	layer->texture.valid = false;
 	layer->texture_offset = (RVec2) { 0, 0 };
 	layer->name = name;
 	layer->children = v_new();
 	layer->pointer_pos = (RVec2) { 0, 0 };
 
-	layer->font = state->visual.default_font;
+	layer->font = screen->default_font;
 	layer->margins = (Margins) {
 		.left = 70,
 		.top = 0,
@@ -22,24 +22,31 @@ void init_layer(FataState* state, VisualLayer* layer, char* name) {
 	};
 }
 
-void init_page(FataState* state, VisualPage* page) {
-	init_layer(state, &page->base_layer, "base");
-	init_layer(state, &page->layer_zero, "0");
-	init_layer(state, &page->layer_one, "1");
-	init_layer(state, &page->layer_two, "2");
-	init_layer(state, &page->message_layer_zero, "message0");
-	init_layer(state, &page->message_layer_one, "message1");
+void init_page(VisualScreen* screen, VisualPage* page) {
+    if (!page->render_target.valid) {
+        page->render_target = r_create_render_texture(screen->size);
+    }
+
+	init_layer(screen, &page->base_layer, "base");
+	init_layer(screen, &page->layer_zero, "0");
+	init_layer(screen, &page->layer_one, "1");
+	init_layer(screen, &page->layer_two, "2");
+	init_layer(screen, &page->message_layer_zero, "message0");
+	init_layer(screen, &page->message_layer_one, "message1");
 }
 
-void init_screen(FataState* state, VisualScreen* screen, RVec2 size) {
+void init_screen(VisualScreen* screen, char* name, RVec2 size) {
+    screen->name = name;
 	screen->size = size;
 
 	screen->active_layer = &screen->fore.message_layer_zero;
 
 	screen->fore.name = "fore";
 	screen->back.name = "back";
-	init_page(state, &screen->fore);
-	init_page(state, &screen->back);
+	init_page(screen, &screen->fore);
+	init_page(screen, &screen->back);
+
+    screen->valid = true;
 }
 
 
@@ -62,7 +69,11 @@ void copy_page(VisualPage* dest, VisualPage* src) {
     copy_layer(&dest->message_layer_one, &src->message_layer_one);
 }
 
-void draw_layer(FataState* state, VisualLayer* layer, int flags) {
+void draw_layer(
+    FataState* state,
+    VisualLayer* layer,
+    int flags
+) {
     if (flags & DRAW_TEXTURES && layer->texture.valid) {
 		//printf("Drawing a texture on '%s'\n", layer->name);
 		r_draw_texture(layer->texture, layer->texture_offset);
@@ -82,7 +93,7 @@ void draw_layer(FataState* state, VisualLayer* layer, int flags) {
                     .height = button->texture.size.y
                 };
 
-				//printf("Tex: (%d, %d)\n", button->texture.size.x, button->texture.size.y);
+				printf("Button: (%d, %d)\n", button->position.x, button->position.y);
 
 				bool mouse_down = r_get_click_down();
                 RVec2 mouse_pos = r_get_cursor_pos();
@@ -152,7 +163,7 @@ void draw_layer(FataState* state, VisualLayer* layer, int flags) {
                 }
             } else if (obj->type == VO_TEXT) {
                 TextObject* text_obj = (TextObject*)obj;
-                RFont* font = &state->visual.active_layer->font;
+                RFont* font = &state->active_screen->active_layer->font;
 
                 r_draw_text(
                     text_obj->text_instance,
@@ -204,9 +215,9 @@ VisualLayer* get_layer(FataState* state, char* layer_name, char* page_name) {
 
 	VisualPage* page = NULL;
 	if (strcmp("fore", page_name) == 0) {
-		page = &state->visual.fore;
+		page = &state->active_screen->fore;
 	} else if (strcmp("back", page_name) == 0) {
-		page = &state->visual.back;
+		page = &state->active_screen->back;
 	}
 	assert(page);
 
@@ -224,13 +235,15 @@ VisualLayer* get_layer(FataState* state, char* layer_name, char* page_name) {
 	return NULL;
 }
 
-void render_screen(FataState* state) {
+void draw_screen(FataState* state, VisualScreen* screen) {
+    // FIXME: Will canvas_size cause a bug with abs-positioned bottom screen stuff? per-screen canvas size pls
 	RRect render_rect = {0};
-	render_rect.height = (float)state->visual.size.y;
+	render_rect.height = (float)screen->size.y;
 	render_rect.width = render_rect.height / (float)state->canvas_size.y * (float)state->canvas_size.x;
-	render_rect.x = (float)((state->visual.size.x - render_rect.width) / 2);
+	render_rect.x = (float)((screen->size.x - render_rect.width) / 2);
 	render_rect.y = 0;
 
+    // TODO: Trans stuff based on screen not state
 	float fore_to_back_fade = 0.0;
 	if (state->transition_max_ms > 0.0f) {
 		printf("TMax: %f ... TRem: %f\n", state->transition_max_ms, state->transition_remaining_ms);
@@ -238,28 +251,33 @@ void render_screen(FataState* state) {
 		fore_to_back_fade = trans_progress_ms / state->transition_max_ms;
 	}
 
+
+    // FIXME: EVERYTHING ABOVE THIS HAS GOT TO MOVE
+
+    r_begin_render_texture_draw(screen, screen->fore.render_target);
+        // BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+        draw_page(state, &screen->fore);
+    r_end_render_texture_draw(screen, screen->fore.render_target);
+
+    if (fore_to_back_fade > 0.0f) {
+        r_begin_render_texture_draw(screen, screen->back.render_target);
+            // BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+            draw_page(state, &screen->back);
+        r_end_render_texture_draw(screen, screen->back.render_target);
+    }
+
+    // r_clear_frame(R_WHITE);
+
+    if (fore_to_back_fade > 0.0f) {
+        r_draw_render_texture(screen->back.render_target, 1.0);
+    }
+
+    r_draw_render_texture(screen->fore.render_target, 1.0 - fore_to_back_fade);
+}
+
+void draw_everything(FataState* state, VisualScreen* screen) {
 	r_begin_frame(state);
-		r_begin_render_texture_draw(state->fore_target);
-			// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-			draw_page(state, &state->visual.fore);
-		r_end_render_texture_draw(state->fore_target);
-
-		if (fore_to_back_fade > 0.0f) {
-			r_begin_render_texture_draw(state->back_target);
-				// BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-				draw_page(state, &state->visual.back);
-			r_end_render_texture_draw(state->back_target);
-		}
-
-		r_clear_frame(R_WHITE);
-
-		//DrawText("FatamoruPORT! By Claire :3\nIf u can see this something is not right", 0, 0, 20, BLACK);
-		if (fore_to_back_fade > 0.0f) {
-			r_draw_render_texture(state->back_target, 1.0);
-		}
-
-		r_draw_render_texture(state->fore_target, 1.0 - fore_to_back_fade);
-
-	r_end_frame();
+        draw_screen(state, screen);
+	r_end_frame(state);
 }
 

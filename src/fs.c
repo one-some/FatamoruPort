@@ -43,6 +43,7 @@ char* find_image(char* storage) {
 		DATA_PATH("bgimage/%s.t3x"),
 		DATA_PATH("image/%s.t3x"),
 		DATA_PATH("fgimage/%s.t3x"),
+		DATA_PATH("static/%s.t3x"),
 
 		DATA_PATH("bgimage/%s.png"),
 		DATA_PATH("bgimage/%s.jpg"),

@@ -40,6 +40,7 @@ void jump_to_point(FataState* state, char* script_name, char* label_target) {
         while (*src) {
             BaseNode* node = parse_one(&state->static_arena, &src);
             if (!node) continue;
+            //print_node(node, "ld");
 
             v_append(&state->nodes, node);
         }

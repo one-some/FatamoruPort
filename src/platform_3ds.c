@@ -1,6 +1,7 @@
 #ifdef PLATFORM_3DS
 
 #include "rosetta.h"
+#include "visual.h"
 #include "fs.h"
 #include "ui.h"
 #include <sys/time.h>
@@ -48,13 +49,8 @@ void r_post_init(FataState* state) {
 }
 
 void r_init(FataState* state) {
-	// FIXME: What?? For tex only!!!
-	state->visual.size = (RVec2) {
-		next_pow2(400),
-		next_pow2(240)
-	};
-
-	init_screen(state, &global_3ds.dual.other, (RVec2) { 320, 240 });
+	init_screen(&state->primary_screen_storage, "primary", (RVec2) { 400, 240 });
+	init_screen(&global_3ds.bottom_screen, "bottom", (RVec2) { 320, 240 });
 
     romfsInit();
     gfxInitDefault();
@@ -67,7 +63,6 @@ void r_init(FataState* state) {
     C2D_Prepare();
 
     printf("FataMor2\n");
-	global_3ds.special_state = SPECIAL_STATE_NONE;
 
 	global_3ds.top_target = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 	assert(global_3ds.top_target);
@@ -103,19 +98,15 @@ bool r_main_loop(FataState* state) {
 }
 
 void r_begin_frame(FataState* state) {
-	if (!global_3ds.dual.bottom_active) {
-		swap_screens(state);
-	}
-
-	draw_screen(state);
-	swap_screens(state);
-
 	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 
 	C2D_SceneBegin(global_3ds.top_target);
 	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
 }
-void r_end_frame() {
+void r_end_frame(FataState* state) {
+	C2D_SceneBegin(global_3ds.bottom_target);
+    draw_screen(state, &global_3ds.bottom_screen);
+
 	C3D_FrameEnd(0);
 }
 
@@ -176,6 +167,9 @@ void r_draw_texture_tint_sample(RTexture texture, RVec2 position, RColor tint, R
 
 RRenderTexture r_create_render_texture(RVec2 size) {
     printf("[rendtex] Alloc %d x %d\n", size.x, size.y);
+    size.x = next_pow2(size.x);
+    size.y = next_pow2(size.y);
+    printf("[rendtex] Up! -> %d x %d\n", size.x, size.y);
 
     CtrRenderTargetBundle* bundle = calloc(1, sizeof(CtrRenderTargetBundle));
 	assert(bundle);
@@ -221,7 +215,7 @@ void r_draw_render_texture(RRenderTexture texture, float alpha) {
 }
 
 
-void r_begin_render_texture_draw(RRenderTexture texture) {
+void r_begin_render_texture_draw(VisualScreen* screen, RRenderTexture texture) {
 	CtrRenderTargetBundle* bundle = (CtrRenderTargetBundle*)texture.resource;
 	assert(bundle);
 
@@ -230,11 +224,18 @@ void r_begin_render_texture_draw(RRenderTexture texture) {
 	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
 }
 
-void r_end_render_texture_draw(RRenderTexture texture) {
+C3D_RenderTarget* screen_to_render_target(VisualScreen* screen) {
+    bool is_bottom = screen == &global_3ds.bottom_screen;
+    return is_bottom ? global_3ds.bottom_target : global_3ds.top_target;
+}
+
+void r_end_render_texture_draw(VisualScreen* screen, RRenderTexture texture) {
 	CtrRenderTargetBundle* bundle = (CtrRenderTargetBundle*)texture.resource;
 	assert(bundle);
 
-	C2D_SceneBegin(global_3ds.top_target);
+    C3D_RenderTarget* target = screen_to_render_target(screen);
+
+	C2D_SceneBegin(target);
 	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
 }
 
@@ -331,94 +332,20 @@ RVec2 r_get_cursor_pos() {
 
 void r_set_window_title(char* title) { }
 
-void title_hook(FataState* state) {
-	printf("HELLOTITLEWORLD");
-
-	// assert(!global_3ds.bottom_layer.texture.valid);
-	global_3ds.special_state = SPECIAL_STATE_TITLE;
-
-	state->visual.fore.base_layer.texture = r_load_texture(DATA_PATH("bgimage/オープニング.t3x"));
-
-
-	// Fata BG
-	VisualLayer* old_layer = state->visual.active_layer;
-
-	// state->visual.active_layer = &global_3ds.bottom_layer;
-	// global_3ds.bottom_layer.texture = r_load_texture(DATA_PATH("bgimage/massageback.t3x"));
-    // global_3ds.overlay = r_load_texture(PATH("static/mockup.t3x"));
-
-    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 10, 10 };
-	ButtonObject* button = create_button(
-		state, 
-		r_load_texture(PATH("static/button_start.t3x")),
-		"scenario.ks",
-		"start",
-		BUTTON_NATIVE
-	);
-
-    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 10, 115 };
-	// create_button(
-	// 	state, 
-	// 	r_load_texture(PATH("static/button_inspect.t3x")),
-	// 	NULL
-	// );
-
-    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 10, 188 };
-	// create_button(
-	// 	state, 
-	// 	r_load_texture(PATH("static/button_config.t3x")),
-	// 	NULL
-	// );
-
-    // global_3ds.bottom_layer.pointer_pos = (RVec2) { 165, 188 };
-	// create_button(
-	// 	state, 
-	// 	r_load_texture(PATH("static/button_extras.t3x")),
-	// 	NULL
-	// );
-
-	state->visual.active_layer = old_layer;
-
-	// if (false) {
-	// 	global_3ds.special_state = SPECIAL_STATE_NONE;
-	// 	jump_to_point(state, DATA_PATH("scenario/scenario.ks"), "start");
-	// }
-}
-
-void title_frame(FataState* state) {
-	// assert(global_3ds.bottom_layer.texture.valid);
-
-	// C2D_SceneBegin(global_3ds.bottom_target);
-	// C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
-
-	// C2D_Fade(C2D_Color32f(0.0f, 0.0f, 0.0f, 0.5f));
-	// draw_layer(state, &global_3ds.bottom_layer, DRAW_TEXTURES);
-	// C2D_Fade(0);
-	// draw_layer(state, &global_3ds.bottom_layer, DRAW_CHILDREN);
-
-    // r_draw_texture(global_3ds.overlay, (RVec2) { 0, 0 });
-}
-
 char* r_jump_hook(FataState* state, char* script_name) {
 	if (strcmp(script_name, "title.ks") == 0) {
 		return "3ds_title.ks";
 	}
-	// else if (strcmp(script_name, "scenario.ks") == 0) {
-	// 	// Stop rendering the bottom title screen
-	// 	// global_3ds.special_state = SPECIAL_STATE_NONE;
-	// }
 
 	return NULL;
 }
 
 void swap_screens(FataState* state) {
-	VisualScreen third_hand = state->visual;
-	state->visual = global_3ds.dual.other;
-	global_3ds.dual.other = third_hand;
+    bool is_top = state->active_screen == &state->primary_screen_storage;
+
+    state->active_screen = is_top ? &global_3ds.bottom_screen : &state->primary_screen_storage;
 
 	printf("SWAP!!\n");
-
-	global_3ds.dual.bottom_active = !global_3ds.dual.bottom_active;
 }
 
 bool r_command_hook(FataState* state, char* cmd, Vector* args) {

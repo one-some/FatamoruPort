@@ -18,22 +18,11 @@ typedef struct {
 	C2D_Text text;
 } CtrTextBundle;
 
-typedef enum {
-	SPECIAL_STATE_NONE,
-	SPECIAL_STATE_TITLE
-} SpecialState;
-
-typedef struct {
-	VisualScreen other;
-	bool bottom_active;
-} ScreenSwapper;
-
 typedef struct {
 	C3D_RenderTarget* top_target;
 	C3D_RenderTarget* bottom_target;
-	SpecialState special_state;
 
-	ScreenSwapper dual;
+	VisualScreen bottom_screen;
 
     RTexture overlay;
 } Global3DS;

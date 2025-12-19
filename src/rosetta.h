@@ -36,6 +36,7 @@ extern int __real_printf(const char* format, ...);
 #include "vector.h"
 
 typedef struct FataState FataState;
+typedef struct VisualScreen VisualScreen;
 
 typedef struct {
     void* resource;
@@ -78,7 +79,7 @@ bool r_command_hook(FataState* state, char* cmd, Vector* args);
 bool r_main_loop(FataState* state);
 
 void r_begin_frame(FataState* state);
-void r_end_frame();
+void r_end_frame(FataState* state);
 
 void r_clear_frame(RColor color);
 
@@ -91,8 +92,8 @@ void r_unload_texture(RTexture texture);
 //SetTextureFilter(back_target.texture, TEXTURE_FILTER_BILINEAR);
 RRenderTexture r_create_render_texture(RVec2 size);
 
-void r_begin_render_texture_draw(RRenderTexture texture);
-void r_end_render_texture_draw(RRenderTexture texture);
+void r_begin_render_texture_draw(VisualScreen* screen, RRenderTexture texture);
+void r_end_render_texture_draw(VisualScreen* screen, RRenderTexture texture);
 
 
 // Stupidly narrow because I remembered the project has a scope
