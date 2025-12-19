@@ -42,4 +42,4 @@
 
 [claire_ctrswapscreen]
 
-[jump storage="scenario.ks" target=*start]
+[jump storage="scenario.ks" target="*start"]

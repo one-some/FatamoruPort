@@ -12,6 +12,10 @@ void jump_to_point(FataState* state, char* script_name, char* label_target) {
 		label_target = NULL;
 	}
 
+	if (label_target && label_target[0] == '*') {
+		label_target++;
+	}
+
 	char* path = script_name ? find_script(script_name) : NULL;
 
 	state->stopped = false;
