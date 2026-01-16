@@ -58,7 +58,7 @@ typedef struct VisualScreen {
 	RVec2 size;
 
 	bool transitioning;
-	float tran_duration_ms;
+	float trans_duration_ms;
 	float trans_remaining_ms;
 
     bool valid;

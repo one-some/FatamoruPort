@@ -49,9 +49,6 @@ void r_post_init(FataState* state) {
 }
 
 void r_init(FataState* state) {
-	init_screen(&state->primary_screen_storage, "primary", (RVec2) { 400, 240 });
-	init_screen(&global_3ds.bottom_screen, "bottom", (RVec2) { 320, 240 });
-
     romfsInit();
     gfxInitDefault();
 
@@ -70,6 +67,9 @@ void r_init(FataState* state) {
 	assert(global_3ds.bottom_target);
 
     printf("FataMoru\n");
+
+	init_screen(state, &state->primary_screen_storage, "primary", (RVec2) { 400, 240 });
+	init_screen(state, &global_3ds.bottom_screen, "bottom", (RVec2) { 320, 240 });
 }
 void r_shutdown() {
     C2D_Fini();

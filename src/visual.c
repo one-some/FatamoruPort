@@ -17,7 +17,7 @@ void init_layer(VisualScreen* screen, VisualLayer* layer, char* name) {
 	layer->margins = (Margins) {
 		.left = 70,
 		.top = 0,
-		.right = 70
+		.right = 70,
 		.bottom = 20
 	};
 }
@@ -247,10 +247,14 @@ void draw_screen(FataState* state, VisualScreen* screen) {
 
     // TODO: Trans stuff based on screen not state
 	float fore_to_back_fade = 0.0;
-	if (state->transition_max_ms > 0.0f) {
-		printf("TMax: %f ... TRem: %f\n", state->transition_max_ms, state->transition_remaining_ms);
-		float trans_progress_ms = state->transition_max_ms - state->transition_remaining_ms;
-		fore_to_back_fade = trans_progress_ms / state->transition_max_ms;
+	if (screen->trans_duration_ms > 0.0f) {
+		printf(
+            "TMax: %f ... TRem: %f\n",
+            screen->trans_duration_ms,
+            screen->trans_remaining_ms
+        );
+		float trans_progress_ms = screen->trans_duration_ms - screen->trans_remaining_ms;
+		fore_to_back_fade = trans_progress_ms / screen->trans_duration_ms;
 	}
 
 

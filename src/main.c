@@ -123,8 +123,8 @@ bool run_command(CommandNode* command, FataState* state) {
 
         int time_ms = get_arg_int(args, "time");
         assert(time_ms != NO_ARG_INT);
-        state->transition_max_ms = (float)time_ms;
-        state->transition_remaining_ms = state->transition_max_ms;
+        state->active_screen->trans_duration_ms = (float)time_ms;
+        state->active_screen->trans_remaining_ms = state->active_screen->trans_duration_ms;
     } else if (strcmp("wt", cmd) == 0) {
         char* can_skip_str = get_arg_str(args, "canskip");
 
@@ -429,8 +429,8 @@ void stop_transition(FataState* state, VisualScreen* screen) {
 	screen->fore.name = "fore";
     screen->back.name = "back";
 
-	state->transition_max_ms = 0.0f;
-	state->transition_remaining_ms = 0.0f;
+	state->active_screen->trans_duration_ms = 0.0f;
+	state->active_screen->trans_remaining_ms = 0.0f;
 	state->wait_for_transition = false;
 	state->can_skip_transition = false;
 }
@@ -438,14 +438,14 @@ void stop_transition(FataState* state, VisualScreen* screen) {
 void frame_work(FataState* state, double delta_ms) {
 	bool dont = false;
 	for (int i=0; i<state->screens.length; i++) {
-		VisualScreen* screen = v_get(&state->screens, i);
+		VisualScreen* screen = *(VisualScreen**)v_get(&state->screens, i);
 
-		if (screen->trans_remaining_ms <= 0.0f) return;
+		if (screen->trans_remaining_ms <= 0.0) continue;
 
 		screen->trans_remaining_ms -= delta_ms;
 
 		if (screen->trans_remaining_ms <= 0.0f) {
-			stop_transition(scree);
+			stop_transition(state, screen);
 		} else if (state->wait_for_transition) {
 			dont = true;
 		}
@@ -501,12 +501,11 @@ int main() {
 	state.script_name = NULL;
     state.wait_timer_ms = 0.0f;
     state.last_time_ms = r_time_ms();
-    state.transition_remaining_ms = 0.0f;
-    state.transition_max_ms = 0.0f;
 	state.can_skip_transition = false;
 	state.can_skip_wait = false;
 	state.call_stack = v_new();
     state.macros = v_new();
+    state.screens = v_new();
 	state.canvas_size = (RVec2) { 800, 600 };
 
     state.active_screen = &state.primary_screen_storage;
@@ -541,10 +540,13 @@ int main() {
 			state.stopped_until_click = false;
 
 			if (
-				state.can_skip_transition &&
-				state.transition_remaining_ms > 0.0f
+				state.can_skip_transition
+				// state.transition_remaining_ms > 0.0f
 			) {
-				stop_transition(&state);
+                for (int i=0; i<state.screens.length; i++) {
+                    VisualScreen* screen = v_get(&state.screens, i);
+                    stop_transition(&state, screen);
+                }
 			} else if (
 				state.can_skip_wait &&
 				state.wait_timer_ms > 0.0f
