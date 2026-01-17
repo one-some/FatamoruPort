@@ -46,6 +46,10 @@ void init_screen(FataState* state, VisualScreen* screen, char* name, RVec2 size)
 	init_page(screen, &screen->fore);
 	init_page(screen, &screen->back);
 
+    screen->transitioning = false;
+    screen->trans_duration_ms = 0.0f;
+    screen->trans_remaining_ms = 0.0f;
+
     screen->valid = true;
 
 	v_append(&state->screens, screen);

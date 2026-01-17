@@ -1,5 +1,4 @@
 ; Okay lets just extend the language a bit
-
 [image layer=base storage="オープニング" page="back"]
 [trans method="crossfade" time="3000" stay="nostay" children="false"]
 [wt]

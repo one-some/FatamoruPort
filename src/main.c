@@ -438,12 +438,11 @@ void stop_transition(FataState* state, VisualScreen* screen) {
 void frame_work(FataState* state, double delta_ms) {
 	bool dont = false;
 	for (int i=0; i<state->screens.length; i++) {
-		VisualScreen* screen = *(VisualScreen**)v_get(&state->screens, i);
+		VisualScreen* screen = v_get(&state->screens, i);
 
 		if (screen->trans_remaining_ms <= 0.0) continue;
 
 		screen->trans_remaining_ms -= delta_ms;
-
 		if (screen->trans_remaining_ms <= 0.0f) {
 			stop_transition(state, screen);
 		} else if (state->wait_for_transition) {

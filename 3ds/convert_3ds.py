@@ -1,19 +1,17 @@
+# Please don't look at this
+
 import os
 import shutil
 import subprocess
 from pathlib import Path
 from PIL import Image, ImageOps
+from concurrent.futures import ProcessPoolExecutor
 
-CACHE_DIR = Path("../cache")
-CONVERT_DIR = Path("./gfx")
-ROMFS = Path("./romfs")
-SRC = Path("./src")
+ROOT_DIR = Path(__file__).parent
 
-try:
-    shutil.rmtree(CONVERT_DIR)
-except FileNotFoundError:
-    pass
-CONVERT_DIR.mkdir(exist_ok=True)
+CACHE_DIR = ROOT_DIR.parent / "cache"
+STATIC_DIR = ROOT_DIR.parent / "static"
+ROMFS = ROOT_DIR / "romfs"
 
 TEX_3DS = Path(os.environ["DEVKITPRO"]) / "tools/bin/tex3ds"
 MKBCFNT = Path(os.environ["DEVKITPRO"]) / "tools/bin/mkbcfnt"
@@ -37,74 +35,83 @@ def convert(source, dest, compression) -> bool:
 
     return proc.returncode == 0
 
+def process_img(file):
+    img = Image.open(file)
+    final_target = ROMFS / file.parent.stem / f"{file.stem}.t3x"
 
-for img_dir in [
-    "bgimage",
-    "image"
-]:
+    compression = "etc1a4"
 
-    dest = CONVERT_DIR / img_dir
-    dest.mkdir()
+    if img.size == (800, 600) or img.size[0] > 800:
+        img = ImageOps.fit(img, TOP_SCREEN_SIZE, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+        if not img.has_transparency_data:
+            compression = "etc1"
 
-    (ROMFS / img_dir).mkdir(exist_ok=True)
-    # (SRC / "bgimage").mkdir(exist_ok=True)
+    temp_path = Path(f"/tmp/moru_{os.getpid()}_{file.stem}.png")
+    img.save(temp_path)
+    print(file, img)
 
-    for child in (CACHE_DIR / img_dir).iterdir():
+    if not convert(temp_path, final_target, compression):
+        print("AYHHHHH!!!!")
+
+    # assert proc.returncode == 0
+
+if __name__ == "__main__":
+    work = []
+
+    for img_dir in [
+        "bgimage",
+        "image"
+    ]:
+
+        (ROMFS / img_dir).mkdir(exist_ok=True)
+        # (SRC / "bgimage").mkdir(exist_ok=True)
+
+        for file in (CACHE_DIR / img_dir).iterdir():
+            if not file.is_file():
+                continue
+
+            final_target = ROMFS / file.parent.stem / f"{file.stem}.t3x"
+            if final_target.is_file():
+                continue
+            
+            work.append(file)
+
+    if work:
+        with ProcessPoolExecutor(max_workers=8) as executor:
+            results = executor.map(process_img, work)
+
+        for result in results:
+            pass
+
+    for direct_copy in ["bgm", "scenario", "sound"]:
+        shutil.copytree(
+            CACHE_DIR / direct_copy,
+            ROMFS / direct_copy,
+            dirs_exist_ok=True
+        )
+
+    (ROMFS/"static").mkdir(exist_ok=True)
+    for child in STATIC_DIR.iterdir():
         if not child.is_file():
             continue
 
-        final_target = ROMFS / img_dir / f"{child.stem}.t3x"
-        if final_target.is_file():
-            # print("Skip.")
-            continue
 
-        img = Image.open(child)
-
-        compression = "etc1a4"
-
-        if img.size == (800, 600) or img.size[0] > 800:
-            img = ImageOps.fit(img, TOP_SCREEN_SIZE, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-            if not img.has_transparency_data:
-                compression = "etc1"
-
-        img.save("/tmp/moru.png")
-        print(child, img)
-
-        if not convert("/tmp/moru.png", final_target, compression):
-            print("AYHHHHH!!!!")
-
-        # assert proc.returncode == 0
-
-for direct_copy in ["bgm", "scenario", "sound"]:
-    shutil.copytree(
-        CACHE_DIR / direct_copy,
-        ROMFS / direct_copy,
-        dirs_exist_ok=True
-    )
-
-# shutil.copytree(
-#     Path("../static"),
-#     ROMFS / "static",
-#     dirs_exist_ok=True
-# )
-(ROMFS/"static").mkdir(exist_ok=True)
-for child in Path("../static").iterdir():
-    if not child.is_file():
-        continue
-
-
-    if child.suffix == ".png":
-        assert convert(child, ROMFS/"static"/f"{child.stem}.t3x", "rgba8888")
-    elif child.suffix == ".ttf":
-        dest = ROMFS/"static"/f"{child.stem}.bcfnt"
-        proc = subprocess.run([
-            MKBCFNT,
-            "-o",
-            dest,
-            child
-        ])
-        assert proc.returncode == 0
-    else:
-        dest = ROMFS/"static"/child.name
-        shutil.copy(child, dest)
+        if child.suffix == ".png":
+            dest = ROMFS / "static" / f"{child.stem}.t3x"
+            if not dest.is_file():
+                assert convert(child, dest, "rgba8888")
+        elif child.suffix == ".ttf":
+            dest = ROMFS/"static"/f"{child.stem}.bcfnt"
+            if not dest.is_file():
+                proc = subprocess.run([
+                    MKBCFNT,
+                    "-o",
+                    dest,
+                    child
+                ])
+                assert proc.returncode == 0
+        else:
+            # Live copy!
+            dest = ROMFS/"static"/child.name
+            shutil.copy(child, dest)
 

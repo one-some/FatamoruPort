@@ -17,6 +17,9 @@ mkdir -p 3ds/out
 rm -f 3ds/out/*
 mkdir -p 3ds/romfs
 
+echo "Building resources..."
+python 3ds/convert_3ds.py
+
 echo "Compiling C..."
 "$CC" $CFLAGS $INCLUDES -c src/*.c -D PLATFORM_3DS -fno-builtin-printf
 
