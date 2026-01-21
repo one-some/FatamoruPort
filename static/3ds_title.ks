@@ -1,10 +1,9 @@
 ; Bottom
 [claire_ctrswapscreen]
 
-[image layer="base" storage="massageback" page="fore"]
-
-[position layer="message1" page="fore" marginl="0"]
-[current layer="message1"]
+[image layer="base" storage="massageback" page="back"]
+[position layer="message1" page="back" marginl="0"]
+[current layer="message1" page="back"]
 
 [locate x="10" y="10"]
 [button native graphic="button_start" target="*scenario"]
@@ -18,11 +17,7 @@
 [locate x="165" y="188"]
 [button native graphic="button_extras" target="*scenario"]
 
-; Somethings bugged out with the [position] page I think, so we have to do this switcheroo
-[backlay]
-[current layer="base"]
-[image layer="base" storage="blacksozai" page="fore"]
-[trans method="crossfade" time="3000" stay="nostay" children="true"]
+[trans method="crossfade" time="3000" stay="nostay" children="false"]
 
 ; Top
 [claire_ctrswapscreen]
@@ -35,9 +30,6 @@
 
 [image storage="オープニング" layer="base" page="fore"]
 [backlay]
-
-; TODO transition botttom in like top
-
 [s]
 
 *scenario

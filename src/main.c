@@ -162,7 +162,8 @@ bool run_command(CommandNode* command, FataState* state) {
 		char* layer = get_arg_str(args, "layer");
 		assert(layer);
 
-        state->active_screen->active_layer = get_layer(state, layer, NULL);
+		char* page = get_arg_str(args, "page");
+        state->active_screen->active_layer = get_layer(state, layer, page);
     } else if (strcmp("button", cmd) == 0) {
 		// button graphic:選択ライン hint:"Exit the game." target:*end enterse:button
 		char* bg_storage = get_arg_str(args, "graphic");
@@ -429,8 +430,8 @@ void stop_transition(FataState* state, VisualScreen* screen) {
 	screen->fore.name = "fore";
     screen->back.name = "back";
 
-	state->active_screen->trans_duration_ms = 0.0f;
-	state->active_screen->trans_remaining_ms = 0.0f;
+	screen->trans_duration_ms = 0.0f;
+	screen->trans_remaining_ms = 0.0f;
 	state->wait_for_transition = false;
 	state->can_skip_transition = false;
 }

@@ -1,3 +1,4 @@
 ; Claire <3 FataMoru
 
-[jump storage="first.ks"]
+[jump storage="title.ks"]
+;[jump storage="first.ks"]
