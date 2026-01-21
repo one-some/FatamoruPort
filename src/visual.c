@@ -99,7 +99,7 @@ void draw_layer(
                     .height = button->texture.size.y
                 };
 
-				printf("Button: (%d, %d)\n", button->position.x, button->position.y);
+				// printf("Button: (%d, %d)\n", button->position.x, button->position.y);
 
 				bool mouse_down = r_get_click_down();
                 RVec2 mouse_pos = r_get_cursor_pos();
@@ -107,7 +107,7 @@ void draw_layer(
 				bool traveling = false;
 
 				// printf("Draw MousePos: (%d, %d)\n", mouse_pos.x, mouse_pos.y);
-				printf("State: %d, Inside: %d\n", button->mouse_state, mouse_inside);
+				// printf("State: %d, Inside: %d\n", button->mouse_state, mouse_inside);
 
 				if (
 					button->mouse_state == BUTTON_MOUSE_NONE &&
@@ -116,7 +116,7 @@ void draw_layer(
 					// Not hover -> hover
 					button->mouse_state = BUTTON_MOUSE_HOVER;
 
-					printf("Hover start.\n");
+					// printf("Hover start.\n");
 
                     r_play_sound(button->enter_se);
 				} else if (
@@ -125,7 +125,7 @@ void draw_layer(
 				) {
 					// Hover -> depressed
 					button->mouse_state = BUTTON_MOUSE_DEPRESSED;
-					printf("Depressed\n");
+					// printf("Depressed\n");
 
 				} else if (
 					button->mouse_state == BUTTON_MOUSE_DEPRESSED &&
@@ -134,14 +134,14 @@ void draw_layer(
 					// depressed -> maybe click!
 					button->mouse_state = BUTTON_MOUSE_NONE;
 					traveling = mouse_inside;
-					printf("CLICK? %d\n", traveling);
+					// printf("CLICK? %d\n", traveling);
 				} else if (
 					button->mouse_state == BUTTON_MOUSE_HOVER &&
 					!mouse_inside
 				) {
 					// Hover -> not hover
 					button->mouse_state = BUTTON_MOUSE_NONE;
-					printf("Hover end\n");
+					// printf("Hover end\n");
 				}
 
                 // Normal, pressed, hovered
