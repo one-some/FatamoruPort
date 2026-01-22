@@ -281,6 +281,14 @@ void r_draw_text(RTextInstance text_instance, RVec2 position) {
 
 	assert(&bundle->text);
 
+    printf(
+        "[txt] (%d, %d) '%s'\n",
+        position.x,
+        position.y,
+        bundle->text
+    );
+
+
 	float size = 0.8;
 	C2D_DrawText(
 		&bundle->text,
