@@ -28,8 +28,7 @@ typedef struct {
 	char* name;
 	Vector children;
 
-	// Wasteful! Only used on message layers
-	RFont font;
+	RFont* font;
 
 	Margins margins;
 	RVec2 pointer_pos;
@@ -54,7 +53,7 @@ typedef struct VisualScreen {
 	VisualPage back;
 	VisualLayer* active_layer;
 
-	RFont default_font;
+	RFont* default_font;
 	RVec2 size;
 
 	bool transitioning;

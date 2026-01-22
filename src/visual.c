@@ -169,7 +169,7 @@ void draw_layer(
                 }
             } else if (obj->type == VO_TEXT) {
                 TextObject* text_obj = (TextObject*)obj;
-                RFont* font = &state->active_screen->active_layer->font;
+                //RFont* font = state->active_screen->active_layer->font;
 
                 r_draw_text(
                     text_obj->text_instance,

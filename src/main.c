@@ -248,7 +248,7 @@ bool run_command(CommandNode* command, FataState* state) {
 			printf("Resetting to (%d, %d)\n", layer->margins.left, layer->margins.top);
 		}
     } else if (strcmp("font", cmd) == 0) {
-		RFont* font = &state->active_screen->active_layer->font;
+		RFont* font = state->active_screen->active_layer->font;
 
 		char* size_str = get_arg_str(args, "size");
 		if (size_str) {
@@ -311,7 +311,7 @@ bool run_command(CommandNode* command, FataState* state) {
 		layer->pointer_pos.x = layer->margins.left;
 
 		// TODO: Spacing...
-		layer->pointer_pos.y += layer->font.size + layer->font.spacing;
+		layer->pointer_pos.y += layer->font->size + layer->font->spacing;
 	} else if (strcmp("if", cmd) == 0) {
 		assert(command->data_type == CMD_DATA_IF);
 		Vector* clauses = (Vector*)command->data;
@@ -371,8 +371,8 @@ bool run_command(CommandNode* command, FataState* state) {
             layer->pointer_pos.x = 75 + layer->margins.left;
             layer->pointer_pos.y = 1 + layer->margins.top;
 
-            layer->font = Font_DroidSerif;
-            layer->font.size = 16;
+            layer->font = &Font_DroidSerif;
+            layer->font->size = 16;
 
             size_t str_size = strlen(name) + 5;
             char* name_buf = malloc(str_size);
@@ -389,7 +389,7 @@ bool run_command(CommandNode* command, FataState* state) {
     } else if (strcmp("c", cmd) == 0) {
         char* text = get_arg_str(args, "text");
 
-		RFont font = state->active_screen->active_layer->font;
+		RFont font = *state->active_screen->active_layer->font;
 
 		RVec2 size = r_measure_text(font, text);
 
@@ -509,7 +509,10 @@ int main() {
 	state.canvas_size = (RVec2) { 800, 600 };
 
     state.active_screen = &state.primary_screen_storage;
+    state.active_screen->default_font = &Font_LibreBaskerville;
+
     r_init(&state);
+
     // Platform must assign screen with init_screen!
     assert(state.primary_screen_storage.valid);
 
@@ -520,8 +523,9 @@ int main() {
 	Font_LibreBaskerville.size = 18;
 	Font_LibreBaskerville.spacing = 8;
 
+    assert(Font_LibreBaskerville.resource);
+
 	// See system/Config.tjs
-	state.active_screen->default_font = Font_LibreBaskerville;
 	// state.visual.default_font.shadow_color = GetColor(0x2b2b2b);
 	// state.visual.default_font.shadow_enabled = true
 	// TODO: Edge

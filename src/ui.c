@@ -11,7 +11,7 @@ TextObject* create_text(FataState* state, char* text) {
 
 	text_object->text_instance = r_create_text(
 		text,
-		state->active_screen->active_layer->font
+		*state->active_screen->active_layer->font
 	);
 
 	text_object->position = state->active_screen->active_layer->pointer_pos;

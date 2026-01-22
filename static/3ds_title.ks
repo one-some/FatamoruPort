@@ -6,6 +6,7 @@
 [current layer="message1" page="back"]
 
 [locate x="10" y="10"]
+Hello bro
 [button native graphic="button_start" target="*scenario"]
 
 [locate x="10" y="115"]

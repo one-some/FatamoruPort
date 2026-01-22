@@ -67,8 +67,10 @@ void r_init(FataState* state) {
 	assert(global_3ds.bottom_target);
 
     printf("FataMoru\n");
-
 	init_screen(state, &state->primary_screen_storage, "primary", (RVec2) { 400, 240 });
+
+    // HACK
+    global_3ds.bottom_screen.default_font = state->primary_screen_storage.default_font;
 	init_screen(state, &global_3ds.bottom_screen, "bottom", (RVec2) { 320, 240 });
 }
 void r_shutdown() {
@@ -258,6 +260,8 @@ RTextInstance r_create_text(char* string, RFont font) {
 
 	bundle->text_buf = C2D_TextBufNew(strlen(string));
 	assert(bundle->text_buf);
+
+    assert(font.resource);
 
 	C2D_Font c_font = (C2D_Font)font.resource;
 	assert(c_font);
