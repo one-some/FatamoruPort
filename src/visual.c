@@ -80,6 +80,10 @@ void draw_layer(
     VisualLayer* layer,
     int flags
 ) {
+    // is active right here??
+    float scale_x = (float)state->active_screen->size.x / (float)state->canvas_size.x;
+    float scale_y = (float)state->active_screen->size.y / (float)state->canvas_size.y;
+
     if (flags & DRAW_TEXTURES && layer->texture.valid) {
 		//printf("Drawing a texture on '%s'\n", layer->name);
 		r_draw_texture(layer->texture, layer->texture_offset);
@@ -92,14 +96,17 @@ void draw_layer(
 
             if (obj->type == VO_BUTTON) {
                 ButtonObject* button = (ButtonObject*)obj;
+                RVec2 scaled_pos = {
+                    .x = (int)(button->position.x * scale_x),
+                    .y = (int)(button->position.y * scale_y)
+                };
+
                 RRect rect = {
-                    .x = button->position.x,
-                    .y = button->position.y,
+                    .x = scaled_pos.x,
+                    .y = scaled_pos.y,
                     .width = button->texture.size.x,
                     .height = button->texture.size.y
                 };
-
-				// printf("Button: (%d, %d)\n", button->position.x, button->position.y);
 
 				bool mouse_down = r_get_click_down();
                 RVec2 mouse_pos = r_get_cursor_pos();
@@ -162,7 +169,7 @@ void draw_layer(
 
 				}
 
-                r_draw_texture_tint(button->texture, button->position, tint);
+                r_draw_texture_tint(button->texture, scaled_pos, tint);
 
                 if (traveling) {
                     jump_to_point(state, button->storage, button->target);
@@ -170,9 +177,14 @@ void draw_layer(
             } else if (obj->type == VO_TEXT) {
                 TextObject* text_obj = (TextObject*)obj;
                 //RFont* font = state->active_screen->active_layer->font;
+                RVec2 scaled_pos = {
+                    .x = (int)(text_obj->position.x * scale_x),
+                    .y = (int)(text_obj->position.y * scale_y)
+                };
+
                 r_draw_text(
                     text_obj->text_instance,
-                    text_obj->position
+                    scaled_pos
                 );
             } else {
                 assert(false);
@@ -251,11 +263,11 @@ void draw_screen(FataState* state, VisualScreen* screen) {
     // TODO: Trans stuff based on screen not state
 	float fore_to_back_fade = 0.0;
 	if (screen->trans_duration_ms > 0.0f) {
-		printf(
-            "TMax: %f ... TRem: %f\n",
-            screen->trans_duration_ms,
-            screen->trans_remaining_ms
-        );
+		// printf(
+        //     "TMax: %f ... TRem: %f\n",
+        //     screen->trans_duration_ms,
+        //     screen->trans_remaining_ms
+        // );
 		float trans_progress_ms = screen->trans_duration_ms - screen->trans_remaining_ms;
 		fore_to_back_fade = trans_progress_ms / screen->trans_duration_ms;
 	}

@@ -258,6 +258,7 @@ RTextInstance r_create_text(char* string, RFont font) {
 	CtrTextBundle* bundle = malloc(sizeof(CtrTextBundle));
 	assert(bundle);
 
+    bundle->string = strdup(string);
 	bundle->text_buf = C2D_TextBufNew(strlen(string));
 	assert(bundle->text_buf);
 
@@ -285,7 +286,7 @@ void r_draw_text(RTextInstance text_instance, RVec2 position) {
         "[txt] (%d, %d) '%s'\n",
         position.x,
         position.y,
-        bundle->text
+        bundle->string
     );
 
 

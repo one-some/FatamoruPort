@@ -16,6 +16,7 @@ typedef struct {
 typedef struct {
 	C2D_TextBuf text_buf;
 	C2D_Text text;
+    char* string;
 } CtrTextBundle;
 
 typedef struct {
