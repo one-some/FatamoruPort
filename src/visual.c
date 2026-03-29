@@ -12,6 +12,7 @@ void init_layer(VisualScreen* screen, VisualLayer* layer, char* name) {
 	layer->name = name;
 	layer->children = v_new();
 	layer->pointer_pos = (RVec2) { 0, 0 };
+    layer->screen = screen;
 
 	layer->font = screen->default_font;
 	layer->margins = (Margins) {
@@ -80,9 +81,8 @@ void draw_layer(
     VisualLayer* layer,
     int flags
 ) {
-    // is active right here??
-    float scale_x = (float)state->active_screen->size.x / (float)state->canvas_size.x;
-    float scale_y = (float)state->active_screen->size.y / (float)state->canvas_size.y;
+    float scale_x = (float)layer->screen->size.x / (float)state->canvas_size.x;
+    float scale_y = (float)layer->screen->size.y / (float)state->canvas_size.y;
 
     if (flags & DRAW_TEXTURES && layer->texture.valid) {
 		//printf("Drawing a texture on '%s'\n", layer->name);
@@ -123,8 +123,6 @@ void draw_layer(
 					// Not hover -> hover
 					button->mouse_state = BUTTON_MOUSE_HOVER;
 
-					// printf("Hover start.\n");
-
                     r_play_sound(button->enter_se);
 				} else if (
 					button->mouse_state == BUTTON_MOUSE_HOVER &&
@@ -132,7 +130,6 @@ void draw_layer(
 				) {
 					// Hover -> depressed
 					button->mouse_state = BUTTON_MOUSE_DEPRESSED;
-					// printf("Depressed\n");
 
 				} else if (
 					button->mouse_state == BUTTON_MOUSE_DEPRESSED &&
@@ -141,14 +138,12 @@ void draw_layer(
 					// depressed -> maybe click!
 					button->mouse_state = BUTTON_MOUSE_NONE;
 					traveling = mouse_inside;
-					// printf("CLICK? %d\n", traveling);
 				} else if (
 					button->mouse_state == BUTTON_MOUSE_HOVER &&
 					!mouse_inside
 				) {
 					// Hover -> not hover
 					button->mouse_state = BUTTON_MOUSE_NONE;
-					// printf("Hover end\n");
 				}
 
                 // Normal, pressed, hovered
@@ -176,7 +171,6 @@ void draw_layer(
                 }
             } else if (obj->type == VO_TEXT) {
                 TextObject* text_obj = (TextObject*)obj;
-                //RFont* font = state->active_screen->active_layer->font;
                 RVec2 scaled_pos = {
                     .x = (int)(text_obj->position.x * scale_x),
                     .y = (int)(text_obj->position.y * scale_y)

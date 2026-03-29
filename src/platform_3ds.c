@@ -10,6 +10,8 @@
 #include <malloc.h>
 #include <citro2d.h>
 #include <3ds.h>
+#include "mem.h"
+#include "parse.h"
 #include "state.h"
 #include "platform_3ds.h"
 
@@ -249,7 +251,9 @@ RFont r_load_font(char* path) {
 	assert(font);
 
 	return (RFont) {
-		.resource = font
+		.resource = font,
+        .size = 10,
+        .color = R_WHITE
 	};
 }
 void r_unload_font(RFont font) { }
@@ -272,39 +276,54 @@ RTextInstance r_create_text(char* string, RFont font) {
 	C2D_TextOptimize(&bundle->text);
 
 	return (RTextInstance) {
-		.resource = bundle
+		.resource = bundle,
+        .font = font
 	};
+}
+
+inline float scale_of_font(RFont font) {
+    return ((float)font.size) / 30.0f;
 }
 
 void r_draw_text(RTextInstance text_instance, RVec2 position) {
 	CtrTextBundle* bundle = (CtrTextBundle*)text_instance.resource;
 	assert(bundle);
-
 	assert(&bundle->text);
 
-    printf(
-        "[txt] (%d, %d) '%s'\n",
-        position.x,
-        position.y,
-        bundle->string
+	float scale = scale_of_font(text_instance.font);
+    uint32_t color = C2D_Color32(
+        text_instance.font.color.r,
+        text_instance.font.color.g,
+        text_instance.font.color.b,
+        text_instance.font.color.a
     );
 
 
-	float size = 0.8;
 	C2D_DrawText(
 		&bundle->text,
 		C2D_WithColor,
 		position.x,
 		position.y,
 		0.2f,
-		size,
-		size,
-		C2D_Color32f(1.0f, 1.0f, 1.0f, 1.0f)
+		scale,
+		scale,
+        color
 	);
 }
 
-RVec2 r_measure_text(RFont font, char* text) {
-	return (RVec2) { 0, 0 };
+RVec2 r_measure_text(RTextInstance text_instance) {
+	CtrTextBundle* bundle = (CtrTextBundle*)text_instance.resource;
+	assert(bundle);
+	assert(&bundle->text);
+
+	float scale = scale_of_font(text_instance.font);
+
+    float width = 0.0f;
+    float height = 0.0f;
+
+    C2D_TextGetDimensions(&bundle->text, scale, scale, &width, &height);
+    printf("%f, %f\n", width, height);
+	return (RVec2) { width, height };
 }
 
 RSound r_load_sound(char* path) {
@@ -328,7 +347,8 @@ bool r_get_click_down() {
 }
 
 bool r_get_skip_held() {
-	return false;
+    u32 down = hidKeysHeld();
+	return down & KEY_A;
 }
 
 RVec2 r_get_cursor_pos() {
@@ -346,6 +366,8 @@ RVec2 r_get_cursor_pos() {
 void r_set_window_title(char* title) { }
 
 char* r_jump_hook(FataState* state, char* script_name) {
+    if (!script_name) return NULL;
+
 	if (strcmp(script_name, "title.ks") == 0) {
 		return "3ds_title.ks";
 	}
@@ -353,17 +375,13 @@ char* r_jump_hook(FataState* state, char* script_name) {
 	return NULL;
 }
 
-void swap_screens(FataState* state) {
-    bool is_top = state->active_screen == &state->primary_screen_storage;
-
-    state->active_screen = is_top ? &global_3ds.bottom_screen : &state->primary_screen_storage;
-
-	printf("SWAP!!\n");
-}
-
 bool r_command_hook(FataState* state, char* cmd, Vector* args) {
-	if (strcmp("claire_ctrswapscreen", cmd) == 0) {
-		swap_screens(state);
+	if (strcmp("claire_ctrscreen", cmd) == 0) {
+        char* screen = get_arg_str(args, "screen");
+        assert(screen);
+
+        bool is_top = strcmp("top", screen) == 0;
+        state->active_screen = is_top ? &state->primary_screen_storage : &global_3ds.bottom_screen;
 		return true;
 	}
 

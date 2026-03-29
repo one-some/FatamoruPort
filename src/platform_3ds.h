@@ -32,4 +32,3 @@ void debug_print_memory(FataState* state);
 uint64_t next_pow2(uint64_t x);
 void title_hook(FataState* state);
 void title_frame(FataState* state);
-void swap_screens(FataState* state);

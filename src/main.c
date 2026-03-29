@@ -270,6 +270,7 @@ bool run_command(CommandNode* command, FataState* state) {
 			font->color.r = ((rgb & 0xFF0000) >> 16);
 			font->color.g = ((rgb & 0x00FF00) >> 8);
 			font->color.b = ((rgb & 0x0000FF));
+            font->color.a = 0xFF;
 		}
 	} else if (strcmp("backlay", cmd) == 0) {
 		copy_page(&state->active_screen->back, &state->active_screen->fore);
@@ -390,14 +391,16 @@ bool run_command(CommandNode* command, FataState* state) {
         char* text = get_arg_str(args, "text");
 
 		RFont font = *state->active_screen->active_layer->font;
-
-		RVec2 size = r_measure_text(font, text);
-
-		int pos = (state->canvas_size.x - size.x) / 2;
-		state->active_screen->active_layer->pointer_pos.x = pos;
-
         assert(text);
-        create_text(state, text);
+
+        float scale_x = (float)state->active_screen->size.x / (float)state->canvas_size.x;
+        TextObject* object = create_text(state, text);
+		int width = r_measure_text(object->text_instance).x / scale_x;
+        printf("[c] size.x: %d %f\n", width, scale_x);
+		int pos = (state->canvas_size.x - width) / 2;
+        object->position.x = pos;
+		// state->active_screen->active_layer->pointer_pos.x = pos;
+
     } else {
 		for (int i=0; i<state->macros.length; i++) {
 			Macro* macro = v_get(&state->macros, i);

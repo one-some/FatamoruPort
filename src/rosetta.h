@@ -112,8 +112,7 @@ void r_unload_font(RFont font);
 
 RTextInstance r_create_text(char* string, RFont font);
 void r_draw_text(RTextInstance text_instance, RVec2 position);
-
-RVec2 r_measure_text(RFont font, char* text);
+RVec2 r_measure_text(RTextInstance text_instance);
 
 RSound r_load_sound(char* path);
 void r_play_sound(RSound track);

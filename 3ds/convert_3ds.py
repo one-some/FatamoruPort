@@ -105,6 +105,8 @@ if __name__ == "__main__":
             if not dest.is_file():
                 proc = subprocess.run([
                     MKBCFNT,
+                    "-s",
+                    "20",
                     "-o",
                     dest,
                     child

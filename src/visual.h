@@ -30,6 +30,9 @@ typedef struct {
 
 	RFont* font;
 
+    // Hack >_>
+    VisualScreen* screen;
+
 	Margins margins;
 	RVec2 pointer_pos;
 } VisualLayer;

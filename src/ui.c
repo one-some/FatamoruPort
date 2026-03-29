@@ -16,7 +16,7 @@ TextObject* create_text(FataState* state, char* text) {
 
 	text_object->position = state->active_screen->active_layer->pointer_pos;
 
-	RVec2 size = r_measure_text(text_object->text_instance.font, text);
+	RVec2 size = r_measure_text(text_object->text_instance);
 	state->active_screen->active_layer->pointer_pos.x += size.x;
 
 	printf("Making text on %s\n", state->active_screen->active_layer->name);
