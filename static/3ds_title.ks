@@ -1,3 +1,19 @@
+[choice]
+
+[r][r][r][r][r]
+...Good morning...[r]
+............
+[wait time="200" canskip="false"]
+
+[locate x="323" y="150"]
+[button graphic="選択ライン" target=*おはよう enterse="button" clickse="click"]
+[locate x="323" y="180"]
+[button graphic="選択ライン" target=*黙る enterse="button" clickse="click"]
+
+[autosave]
+[s]
+;;;;;;;;
+
 [claire_ctrscreen screen="bottom"]
 
 [image layer="base" storage="massageback" page="back"]

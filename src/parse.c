@@ -281,6 +281,57 @@ void process_command(MemArena* arena, CommandNode* command, char** src) {
             char* n_cmd = ((CommandArg*)v_get(&cmd_node->args, 0))->key;
             if (strcmp(n_cmd, "endmacro") == 0) break;
         }
+    } else if (strcmp(cmd, "choice") == 0) {
+        // Might be the wrong way to implement this...
+        Vector* entries = a_malloc(arena, sizeof(Vector));
+        *entries = v_new();
+
+		command->data_type = CMD_DATA_CHOICE;
+		command->data = entries;
+
+        int target_idx = 0;
+        bool gathering_ended = false;
+
+        while (**src) {
+            char* old_src = *src;
+            BaseNode* node = parse_one(arena, src);
+            if (!node) continue;
+
+            print_node(node, "parse-choice");
+
+            if (node->type == NODE_COMMAND) {
+                CommandNode* cmd_node = (CommandNode*)node;
+
+                char* n_cmd = ((CommandArg*)v_get(&cmd_node->args, 0))->key;
+                if (strcmp(n_cmd, "s") == 0) {
+                    // Rewind so we actually stop
+                    (*src) = old_src;
+
+                    for (int i=0; i<entries->length; i++) {
+                        ChoiceEntry* ent = v_get(entries, i);
+                        printf("'%s' -> %s\n", ent->label, ent->target);
+                    }
+
+                    break;
+                } else if (strcmp(n_cmd, "wait") == 0) {
+                    gathering_ended = true;
+                } else if (strcmp(n_cmd, "button") == 0) {
+                    ChoiceEntry* last_entry = v_get(entries, target_idx++);
+                    last_entry->target = get_arg_str(&cmd_node->args, "target");
+                }
+            } else if (node->type == NODE_TEXT && !gathering_ended) {
+                // FIXME: This check FAILS for variable [if]'ed choices
+                TextNode* text_node = (TextNode*)node;
+
+                char* label = text_node->text;
+                label[strcspn(label, "\n")] = 0;
+
+                ChoiceEntry* entry = a_malloc(arena, sizeof(ChoiceEntry));
+                entry->label = label;
+                entry->target = "???";
+                v_append(entries, entry);
+            }
+        }
     }
 }
 

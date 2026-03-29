@@ -22,6 +22,7 @@ typedef enum {
 	CMD_DATA_NONE,
 	CMD_DATA_IF,
 	CMD_DATA_MACRO,
+    CMD_DATA_CHOICE
 } CommandDataType;
 
 typedef struct {
@@ -47,6 +48,11 @@ typedef struct {
     char* key;
     char* value;
 } CommandArg;
+
+typedef struct {
+    char* label;
+    char* target;
+} ChoiceEntry;
 
 bool is_whitespace(char c);
 char* load_src(const char* path);
