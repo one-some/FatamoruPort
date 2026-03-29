@@ -4,39 +4,56 @@
 #include "ui.h"
 #include "state.h"
 
-TextObject* create_text(FataState* state, char* text) {
+TextObject* create_text(
+    FataState* state,
+    char* text,
+    VisualScreen* screen
+) {
+    if (!screen) screen = state->active_screen;
+
 	TextObject* text_object = malloc(sizeof(TextObject));
 
 	text_object->base = (UIObject) { .type = VO_TEXT };
 
 	text_object->text_instance = r_create_text(
 		text,
-		*state->active_screen->active_layer->font
+		*screen->active_layer->font
 	);
 
-	text_object->position = state->active_screen->active_layer->pointer_pos;
+	text_object->position = screen->active_layer->pointer_pos;
 
 	RVec2 size = r_measure_text(text_object->text_instance);
-	state->active_screen->active_layer->pointer_pos.x += size.x;
+	screen->active_layer->pointer_pos.x += size.x;
 
-	printf("Making text on %s\n", state->active_screen->active_layer->name);
+	printf("Making text on %s\n", screen->active_layer->name);
 
-	v_append(&state->active_screen->active_layer->children, text_object);
+	v_append(&screen->active_layer->children, text_object);
 
 	return text_object;
 }
 
-ButtonObject* create_button(FataState* state, RTexture texture, char* storage, char* target, int flags) {
+ButtonObject* create_button(
+    FataState* state,
+    RTexture texture,
+    char* storage,
+    char* target,
+    int flags,
+    VisualScreen* screen
+) {
 	ButtonObject* button = malloc(sizeof(ButtonObject));
 	button->base = (UIObject) { .type = VO_BUTTON };
 	button->storage = storage;
 	button->target = target;
-	button->position = state->active_screen->active_layer->pointer_pos;
+
+
+    if (!screen) screen = state->active_screen;
+
+	button->position = screen->active_layer->pointer_pos;
 	button->mouse_state = BUTTON_MOUSE_NONE;
 	button->texture = texture;
 	button->flags = flags;
 
-	v_append(&state->active_screen->active_layer->children, button);
+	v_append(&screen->active_layer->children, button);
 
 	return button;
 }

@@ -74,6 +74,8 @@ void r_init(FataState* state) {
     // HACK
     global_3ds.bottom_screen.default_font = state->primary_screen_storage.default_font;
 	init_screen(state, &global_3ds.bottom_screen, "bottom", (RVec2) { 320, 240 });
+
+    state->choice_screen = &global_3ds.bottom_screen;
 }
 void r_shutdown() {
     C2D_Fini();
@@ -130,6 +132,7 @@ RTexture r_load_texture(char* path) {
 
     C2D_Image* image = malloc(sizeof(C2D_Image));
     *image = C2D_SpriteSheetGetImage(*sheet, 0);
+    assert(image);
 
 	return (RTexture) {
 		.valid = true,
@@ -223,7 +226,7 @@ void r_begin_render_texture_draw(VisualScreen* screen, RRenderTexture texture) {
 	CtrRenderTargetBundle* bundle = (CtrRenderTargetBundle*)texture.resource;
 	assert(bundle);
 
-	C2D_TargetClear(bundle->target, C2D_Color32(0xFF, 0, 0, 0xFF));
+	C2D_TargetClear(bundle->target, C2D_Color32(0, 0, 0, 0xFF));
 	C2D_SceneBegin(bundle->target);
 	C3D_DepthTest(false, GPU_GREATER, GPU_WRITE_COLOR);
 }

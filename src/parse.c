@@ -297,8 +297,6 @@ void process_command(MemArena* arena, CommandNode* command, char** src) {
             BaseNode* node = parse_one(arena, src);
             if (!node) continue;
 
-            print_node(node, "parse-choice");
-
             if (node->type == NODE_COMMAND) {
                 CommandNode* cmd_node = (CommandNode*)node;
 
@@ -306,18 +304,13 @@ void process_command(MemArena* arena, CommandNode* command, char** src) {
                 if (strcmp(n_cmd, "s") == 0) {
                     // Rewind so we actually stop
                     (*src) = old_src;
-
-                    for (int i=0; i<entries->length; i++) {
-                        ChoiceEntry* ent = v_get(entries, i);
-                        printf("'%s' -> %s\n", ent->label, ent->target);
-                    }
-
                     break;
                 } else if (strcmp(n_cmd, "wait") == 0) {
                     gathering_ended = true;
                 } else if (strcmp(n_cmd, "button") == 0) {
                     ChoiceEntry* last_entry = v_get(entries, target_idx++);
                     last_entry->target = get_arg_str(&cmd_node->args, "target");
+                    if (last_entry->target[0] == '*') last_entry->target++;
                 }
             } else if (node->type == NODE_TEXT && !gathering_ended) {
                 // FIXME: This check FAILS for variable [if]'ed choices

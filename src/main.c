@@ -164,6 +164,43 @@ bool run_command(CommandNode* command, FataState* state) {
 
 		char* page = get_arg_str(args, "page");
         state->active_screen->active_layer = get_layer(state, layer, page);
+    } else if (strcmp("choice", cmd) == 0) {
+        const int spacing = 50;
+		RTexture tex = r_load_texture(find_image("選択ライン"));
+
+        Vector* entries = (Vector*)command->data;
+
+        float scale_x = (float)state->choice_screen->size.x / (float)state->canvas_size.x;
+        float scale_y = (float)state->choice_screen->size.y / (float)state->canvas_size.y;
+
+        int y_start = ((state->choice_screen->size.y - spacing * entries->length) / 2) / scale_y;
+
+        for (int i=0; i<entries->length; i++) {
+            ChoiceEntry* ent = v_get(entries, i);
+
+            int target_y = y_start + (spacing * i) / scale_y;
+            state->choice_screen->active_layer->pointer_pos.x = 0;
+            state->choice_screen->active_layer->pointer_pos.y = target_y;
+
+            TextObject* object = create_text(state, ent->label, state->choice_screen);
+
+            int width = r_measure_text(object->text_instance).x / scale_x;
+            int pos = (state->canvas_size.x - width) / 2;
+            object->position.x = pos;
+
+            state->choice_screen->active_layer->pointer_pos.x = 0;
+            state->choice_screen->active_layer->pointer_pos.y = target_y - (spacing / 2);
+            ButtonObject* button = create_button(
+                state,
+                tex,
+                NULL,
+                ent->target,
+                0,
+                state->choice_screen
+            );
+
+        }
+
     } else if (strcmp("button", cmd) == 0) {
 		// button graphic:選択ライン hint:"Exit the game." target:*end enterse:button
 		char* bg_storage = get_arg_str(args, "graphic");
@@ -189,7 +226,8 @@ bool run_command(CommandNode* command, FataState* state) {
 			r_load_texture(path),
 			get_arg_str(args, "storage"),
 			target,
-			flags
+			flags,
+            NULL
 		);
 
         // Blehhh!!
@@ -379,7 +417,7 @@ bool run_command(CommandNode* command, FataState* state) {
             char* name_buf = malloc(str_size);
             snprintf(name_buf, str_size, "- %s -", name);
 
-            create_text(state, name_buf);
+            create_text(state, name_buf, NULL);
 
             layer->font = state->active_screen->default_font;
         }
@@ -394,7 +432,7 @@ bool run_command(CommandNode* command, FataState* state) {
         assert(text);
 
         float scale_x = (float)state->active_screen->size.x / (float)state->canvas_size.x;
-        TextObject* object = create_text(state, text);
+        TextObject* object = create_text(state, text, NULL);
 		int width = r_measure_text(object->text_instance).x / scale_x;
         printf("[c] size.x: %d %f\n", width, scale_x);
 		int pos = (state->canvas_size.x - width) / 2;
@@ -479,7 +517,7 @@ void frame_work(FataState* state, double delta_ms) {
             if (showstopper) return;
 		} else if (node->type == NODE_TEXT) {
             TextNode* text_node = (TextNode*)node;
-			create_text(state, text_node->text);
+			create_text(state, text_node->text, NULL);
         }
     }
 
@@ -513,6 +551,7 @@ int main() {
 
     state.active_screen = &state.primary_screen_storage;
     state.active_screen->default_font = &Font_LibreBaskerville;
+    state.choice_screen = state.active_screen;
 
     r_init(&state);
 

@@ -164,7 +164,9 @@ void draw_layer(
 
 				}
 
-                r_draw_texture_tint(button->texture, scaled_pos, tint);
+                if (button->texture.valid) {
+                    r_draw_texture_tint(button->texture, scaled_pos, tint);
+                }
 
                 if (traveling) {
                     jump_to_point(state, button->storage, button->target);

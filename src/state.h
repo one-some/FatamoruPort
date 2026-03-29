@@ -18,6 +18,7 @@ typedef struct FataState {
     AudioManager audio;
     VisualScreen primary_screen_storage;
     VisualScreen* active_screen;
+    VisualScreen* choice_screen;
 	Vector screens;
 
 	bool can_skip_wait;
