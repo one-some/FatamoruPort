@@ -40,8 +40,8 @@ bool run_command(CommandNode* command, FataState* state) {
 
 	if (strcmp("endmacro", cmd) == 0) {
         return_from_callstack(state);
-        return true;
 
+        return true;
     } else if (strcmp("wait", cmd) == 0) {
         int time_ms = get_arg_int(args, "time");
         assert(time_ms != NO_ARG_INT);
@@ -54,6 +54,7 @@ bool run_command(CommandNode* command, FataState* state) {
 
 		state->can_skip_wait = can_skip;
         state->wait_timer_ms = (float)time_ms;
+
         return true;
     } else if (strcmp("image", cmd) == 0) {
         char* storage = get_arg_str(args, "storage");
@@ -88,6 +89,7 @@ bool run_command(CommandNode* command, FataState* state) {
 			layer->texture_offset.x = left_px;
 		}
 
+        return false;
     } else if (strcmp("jump", cmd) == 0) {
         char* storage = get_arg_str(args, "storage");
 		char* target = get_arg_str(args, "target");
@@ -108,6 +110,8 @@ bool run_command(CommandNode* command, FataState* state) {
 
         state->audio.bgm = r_load_sound(path);
         r_play_sound(state->audio.bgm);
+
+        return false;
     } else if (strcmp("playse", cmd) == 0) {
         char* storage = get_arg_str(args, "storage");
         assert(storage);
@@ -117,6 +121,8 @@ bool run_command(CommandNode* command, FataState* state) {
 
         RSound track = r_load_sound(path);
         r_play_sound(track);
+
+        return false;
     } else if (strcmp("trans", cmd) == 0) {
         char* method = get_arg_str(args, "method");
         assert(method);
@@ -125,6 +131,7 @@ bool run_command(CommandNode* command, FataState* state) {
         assert(time_ms != NO_ARG_INT);
         state->active_screen->trans_duration_ms = (float)time_ms;
         state->active_screen->trans_remaining_ms = state->active_screen->trans_duration_ms;
+        return false;
     } else if (strcmp("wt", cmd) == 0) {
         char* can_skip_str = get_arg_str(args, "canskip");
 
@@ -158,16 +165,19 @@ bool run_command(CommandNode* command, FataState* state) {
 
         printf("[locate] X:%d, %s\n", layer->pointer_pos.x, state->active_screen->name);
 
+        return false;
     } else if (strcmp("current", cmd) == 0) {
 		char* layer = get_arg_str(args, "layer");
 		assert(layer);
 
 		char* page = get_arg_str(args, "page");
         state->active_screen->active_layer = get_layer(state, layer, page);
+        return false;
     } else if (strcmp("choice", cmd) == 0) {
         const int spacing = 50;
 		RTexture tex = r_load_texture(find_image("選択ライン"));
 
+        VisualLayer* layer = &state->choice_screen->fore.message_layer_one;
         Vector* entries = (Vector*)command->data;
 
         float scale_x = (float)state->choice_screen->size.x / (float)state->canvas_size.x;
@@ -179,28 +189,28 @@ bool run_command(CommandNode* command, FataState* state) {
             ChoiceEntry* ent = v_get(entries, i);
 
             int target_y = y_start + (spacing * i) / scale_y;
-            state->choice_screen->active_layer->pointer_pos.x = 0;
-            state->choice_screen->active_layer->pointer_pos.y = target_y;
+            layer->pointer_pos.x = 0;
+            layer->pointer_pos.y = target_y;
 
-            TextObject* object = create_text(state, ent->label, state->choice_screen);
+            TextObject* object = create_text(state, ent->label, layer);
 
             int width = r_measure_text(object->text_instance).x / scale_x;
             int pos = (state->canvas_size.x - width) / 2;
             object->position.x = pos;
 
-            state->choice_screen->active_layer->pointer_pos.x = 0;
-            state->choice_screen->active_layer->pointer_pos.y = target_y - (spacing / 2);
+            layer->pointer_pos.x = 0;
+            layer->pointer_pos.y = target_y - (spacing / 2);
             ButtonObject* button = create_button(
                 state,
                 tex,
                 NULL,
                 ent->target,
                 0,
-                state->choice_screen
+                layer
             );
-
         }
 
+        return false;
     } else if (strcmp("button", cmd) == 0) {
 		// button graphic:選択ライン hint:"Exit the game." target:*end enterse:button
 		char* bg_storage = get_arg_str(args, "graphic");
@@ -236,6 +246,7 @@ bool run_command(CommandNode* command, FataState* state) {
         if (enter_se_storage) {
             button->enter_se = r_load_sound(find_sfx(enter_se_storage));
         }
+        return false;
     } else if (strcmp("close", cmd) == 0) {
 		printf("[end] Goodbye from The House in Fata Morgana...\n");
 		exit(0);
@@ -285,6 +296,7 @@ bool run_command(CommandNode* command, FataState* state) {
 
 			printf("Resetting to (%d, %d)\n", layer->margins.left, layer->margins.top);
 		}
+        return false;
     } else if (strcmp("font", cmd) == 0) {
 		RFont* font = state->active_screen->active_layer->font;
 
@@ -310,8 +322,10 @@ bool run_command(CommandNode* command, FataState* state) {
 			font->color.b = ((rgb & 0x0000FF));
             font->color.a = 0xFF;
 		}
+        return false;
 	} else if (strcmp("backlay", cmd) == 0) {
 		copy_page(&state->active_screen->back, &state->active_screen->fore);
+        return false;
 	} else if (strcmp("position", cmd) == 0) {
 		VisualLayer* layer = get_layer(
 			state,
@@ -341,16 +355,22 @@ bool run_command(CommandNode* command, FataState* state) {
 
 			layer->texture = r_load_texture(path);
 		}
+
+        return false;
     } else if (strcmp("title", cmd) == 0) {
         char* name = get_arg_str(args, "name");
 		assert(name);
 		r_set_window_title(name);
+
+        return false;
     } else if (strcmp("r", cmd) == 0) {
 		VisualLayer* layer = state->active_screen->active_layer;
 		layer->pointer_pos.x = layer->margins.left;
 
 		// TODO: Spacing...
 		layer->pointer_pos.y += layer->font->size + layer->font->spacing;
+
+        return false;
 	} else if (strcmp("if", cmd) == 0) {
 		assert(command->data_type == CMD_DATA_IF);
 		Vector* clauses = (Vector*)command->data;
@@ -437,7 +457,7 @@ bool run_command(CommandNode* command, FataState* state) {
         printf("[c] size.x: %d %f\n", width, scale_x);
 		int pos = (state->canvas_size.x - width) / 2;
         object->position.x = pos;
-		// state->active_screen->active_layer->pointer_pos.x = pos;
+        // object->position.y = state->active_screen->active_layer->pointer_pos.y;
 
     } else {
 		for (int i=0; i<state->macros.length; i++) {
@@ -459,6 +479,7 @@ bool run_command(CommandNode* command, FataState* state) {
 		}
 	}
 
+    printf("[exec] ?? What is '%s'\n", cmd);
     return false;
 }
 

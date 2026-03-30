@@ -366,6 +366,9 @@ BaseNode* parse_one(MemArena* arena, char** src) {
 			if (c == '*') break;
 			if (c == ';') break;
 
+            // Will this fuck it up or make my day
+			if (c == '\n') c = ' ';
+
 			assert(i < 255);
 			out->text[i++] = c;
 

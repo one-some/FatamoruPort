@@ -50,5 +50,5 @@ typedef struct {
 	RTextInstance text_instance;
 } TextObject;
 
-TextObject* create_text(FataState* state, char* text, VisualScreen* screen);
-ButtonObject* create_button(FataState* state, RTexture texture, char* storage, char* target, int flags, VisualScreen* screen);
+TextObject* create_text(FataState* state, char* text, VisualLayer* layer);
+ButtonObject* create_button(FataState* state, RTexture texture, char* storage, char* target, int flags, VisualLayer* layer);
